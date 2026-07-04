@@ -278,8 +278,19 @@ void R_ImageList_f( void ) {
 	}
 
 	ri.Printf (PRINT_ALL, " ---------\n");
-	ri.Printf (PRINT_ALL, " approx %i bytes\n", estTotalSize);
+	ri.Printf (PRINT_ALL, " approx %i bytes (desktop GL estimate, not accurate under native GX)\n", estTotalSize);
 	ri.Printf (PRINT_ALL, " %i total images\n\n", tr.numImages );
+#if defined(WII_NATIVE_GX)
+	/* GC memory-budget measurement (docs/MEMORY_MAP.md step 0): the real
+	 * Arena1 memalign footprint, 16-bit + in-place mips, not the 32-bit
+	 * estimate above. */
+	ri.Printf (PRINT_ALL, " GX resident texture heap: %d bytes (%.2f MB)\n",
+	           GXBE_GetResidentTexBytes(),
+	           (float)GXBE_GetResidentTexBytes() / (1024.0f * 1024.0f));
+	ri.Printf (PRINT_ALL, " GX peak texture heap:     %d bytes (%.2f MB)\n\n",
+	           GXBE_GetPeakTexBytes(),
+	           (float)GXBE_GetPeakTexBytes() / (1024.0f * 1024.0f));
+#endif
 }
 
 //=======================================================================

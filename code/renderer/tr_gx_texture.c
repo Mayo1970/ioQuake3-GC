@@ -18,6 +18,17 @@ int       s_gx_next_texnum = 0;
  * GXBE_TexSubImage2D to re-swizzle with the same format. */
 static u8 s_gx_texfmt[GX_MAX_TEXOBJS];
 
+/* GC memory-budget measurement (docs/MEMORY_MAP.md, CLASSIC_GC.md step 0):
+ * per-slot resident byte count + running total, so the actual Arena1
+ * memalign footprint can be read back live via "gx_texmem" instead of
+ * guessed. Not upstream-Wii — GC-measurement-only addition. */
+static int s_gx_texsize[GX_MAX_TEXOBJS];
+static int s_gx_tex_bytes_resident = 0;
+static int s_gx_tex_bytes_peak = 0;
+
+int GXBE_GetResidentTexBytes(void)  { return s_gx_tex_bytes_resident; }
+int GXBE_GetPeakTexBytes(void)      { return s_gx_tex_bytes_peak; }
+
 /* 16-bit swizzles: 4x4-texel tiles of 32 bytes; u16 per texel, native big-endian. */
 
 static void gx_swizzle_rgb565(void *dst, const void *src, int w, int h)
@@ -130,6 +141,8 @@ void GXBE_DeleteTexnum(int texnum)
     if (s_gx_texbufs[texnum]) {
         free(s_gx_texbufs[texnum]);
         s_gx_texbufs[texnum] = NULL;
+        s_gx_tex_bytes_resident -= s_gx_texsize[texnum];
+        s_gx_texsize[texnum] = 0;
     }
     s_gx_texobj_valid[texnum] = qfalse;
 
@@ -158,6 +171,8 @@ void GXBE_Upload32(unsigned *data, int width, int height,
         free(s_gx_texbufs[texnum]);
         s_gx_texbufs[texnum] = NULL;
         s_gx_texobj_valid[texnum] = qfalse;
+        s_gx_tex_bytes_resident -= s_gx_texsize[texnum];
+        s_gx_texsize[texnum] = 0;
     }
 
     fmt = gx_format_has_alpha(glInternalFormat) ? GX_TF_RGB5A3 : GX_TF_RGB565;
@@ -229,6 +244,10 @@ void GXBE_Upload32(unsigned *data, int width, int height,
     s_gx_texbufs[texnum]      = buf;
     s_gx_texfmt[texnum]       = fmt;
     s_gx_texobj_valid[texnum] = qtrue;
+    s_gx_texsize[texnum]      = size;
+    s_gx_tex_bytes_resident  += size;
+    if (s_gx_tex_bytes_resident > s_gx_tex_bytes_peak)
+        s_gx_tex_bytes_peak = s_gx_tex_bytes_resident;
 
     /* If this texnum is currently bound, reload the GXTexObj in GX */
     for (tmu = 0; tmu < 2; tmu++) {

@@ -110,6 +110,11 @@ void     GXBE_Upload32(unsigned *data, int width, int height,
                        qboolean mipmap);
 void     GXBE_TexSubImage2D(int texnum, int fullW, int fullH, const byte *data);
 
+/* GC memory-budget measurement only (not upstream Wii): live resident/peak
+ * byte counters for GXBE_Upload32's memalign'd texture heap. */
+int      GXBE_GetResidentTexBytes(void);
+int      GXBE_GetPeakTexBytes(void);
+
 #endif /* WII_NATIVE_GX */
 
 #endif /* TR_GX_H */

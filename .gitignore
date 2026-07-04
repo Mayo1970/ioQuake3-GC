@@ -3,3 +3,8 @@ build*/
 *.elf
 *.elf.map
 *.o
+
+# Copied from devkitPro portlibs zlib at build time (Makefile ZLIB_H_COPY/
+# ZCONF_H_COPY, `make clean` deletes them) — not vendored source.
+code/qcommon/zlib.h
+code/qcommon/zconf.h
