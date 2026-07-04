@@ -8,3 +8,6 @@ build*/
 # ZCONF_H_COPY, `make clean` deletes them) — not vendored source.
 code/qcommon/zlib.h
 code/qcommon/zconf.h
+
+# Claude Code session-local artifacts, not project source.
+.claude/

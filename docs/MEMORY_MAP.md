@@ -188,11 +188,20 @@ Dolphin (GC mode) enforces the exact 24 MB + 16 MB ARAM map, so **#1–#4 can
 all be taken in the emulator** before real hardware. #0 needs only the
 existing Wii build.
 
-0. **On the Wii build, today:** instrument `tr_gx_texture.c`'s `memalign`
-   total and the hunk high-water mark; run a DC-roster map (q3dm6-class) at
-   `r_picmip 3` + `cg_forceModel 1`. **This is the deciding number** — it
-   gates ARAM sound paging (see `../../CLASSIC_GC.md`). **Not yet done —
-   needs source instrumentation + a Dolphin run.**
+0. ✅ **DONE 2026-07-04 — texture heap measured, hunk partially measured.**
+   Instrumented `tr_gx_texture.c` with live resident/peak byte counters
+   (surfaced via `imagelist`), ran `build_classic` in Dolphin (Wii mode,
+   q3dm6, `r_picmip 3` + `cg_forceModel 1`), read `qconsole.log` back out of
+   Dolphin's `sd.raw` (the normal SD folder-sync-back didn't fire on close;
+   extracted directly with `pyfatfs` instead). **Result: GX resident texture
+   heap = 3,175,040 bytes (3.03 MB), peak == resident** (confirms no
+   transient upload spike). This is the **pessimistic end** of the
+   previously estimated 0.5–2 MB band — see `../../CLASSIC_GC.md` Revision 4
+   for what this means for the low-res-pak decision. Hunk figures from the
+   same run (18.59 MB total, in-use, JIT mode, locally-hosted with
+   qagame+bots) need a follow-up interpreter-mode (`WII_VM_NATIVE=0`),
+   join-only (no qagame/bots/AAS) re-run before they're GC-representative —
+   see Revision 4 for the full caveat.
 1. ✅ **DONE 2026-07-04 — Linked ELF size** (`powerpc-eabi-size
    build_classic/boot.elf`): text 1,875,736 + data 668,600 + **BSS
    11,048,112** = 13,592,448 bytes. **BSS was estimated at 1–2 MB; the real
