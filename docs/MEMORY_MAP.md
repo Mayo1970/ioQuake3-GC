@@ -197,11 +197,14 @@ existing Wii build.
    heap = 3,175,040 bytes (3.03 MB), peak == resident** (confirms no
    transient upload spike). This is the **pessimistic end** of the
    previously estimated 0.5–2 MB band — see `../../CLASSIC_GC.md` Revision 4
-   for what this means for the low-res-pak decision. Hunk figures from the
-   same run (18.59 MB total, in-use, JIT mode, locally-hosted with
-   qagame+bots) need a follow-up interpreter-mode (`WII_VM_NATIVE=0`),
-   join-only (no qagame/bots/AAS) re-run before they're GC-representative —
-   see Revision 4 for the full caveat.
+   for what this means for the low-res-pak decision. **Follow-up done same
+   day:** rebuilt with `WII_VM_NATIVE=0` (interpreter, GC's actual VM mode)
+   on the same q3dm6 run — total hunk in use rose from 18.59 MB (JIT) to
+   20.57 MB (interpreter); minus qagame (2.75 MB), **~17.0 MB for
+   cgame+ui+world on q3dm6 alone**, more than double the ~6–8 MB estimate.
+   See `../../CLASSIC_GC.md` Revision 5 — this is now the dominant budget
+   problem, bigger than the texture heap, and points at the map roster
+   (BSP/lightmap size, not just textures) as the next lever.
 1. ✅ **DONE 2026-07-04 — Linked ELF size** (`powerpc-eabi-size
    build_classic/boot.elf`): text 1,875,736 + data 668,600 + **BSS
    11,048,112** = 13,592,448 bytes. **BSS was estimated at 1–2 MB; the real
