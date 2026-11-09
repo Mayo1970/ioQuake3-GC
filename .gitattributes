@@ -1,0 +1,8 @@
+# Scripts and build files run inside the Linux container; CRLF breaks bash and make.
+*.sh text eol=lf
+*.patch text eol=lf
+*.py text eol=lf
+*.ld text eol=lf
+Dockerfile text eol=lf
+Makefile text eol=lf
+*.mk text eol=lf

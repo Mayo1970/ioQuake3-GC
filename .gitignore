@@ -1,0 +1,87 @@
+# Build artifacts
+*.d
+*.o
+*.obj
+*.a
+*.la
+*.lo
+*.so
+*.so.*
+*.dll
+*.dylib
+*.exe
+*.out
+*.elf
+*.map
+*.gch
+*.pch
+*.su
+*.dwo
+*.pdb
+*.ilk
+
+# GameCube build outputs
+*.dol
+build/
+build_*/
+dist/
+build_log*.txt
+
+# Dolphin smoke-test disc images (delete after each smoke)
+*.iso
+*.gcm
+*.gcz
+*.rvz
+*.ciso
+*.wbfs
+iso/
+disc/
+
+# Game data (user-provided; never commit)
+*.pk3
+*.pk3dir/
+*.qvm
+/baseq3/
+/baseoa/
+/missionpack/
+/demoq3/
+q3key
+qkey
+*config.cfg
+
+# Console, emulator and memory card files
+*.log
+*.raw
+*.gci
+*.gcp
+*.sav
+results/
+dolphin*/
+sd/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Local planning (sprint plan and board stay off the repo)
+plan/
+
+# AI assistant / editor cruft
+.claude/
+.codex/
+.opencode/
+.cursor/
+.aider*
+CLAUDE.md
+AGENTS.md
+opencode.json
+opencode.jsonc
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
