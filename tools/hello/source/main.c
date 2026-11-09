@@ -14,11 +14,12 @@ int main(int argc, char **argv)
 	rmode = VIDEO_GetPreferredMode(NULL);
 	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
 
+	console_init(xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight,
+	             rmode->fbWidth * VI_DISPLAY_PIX_SZ);
+
 	for (i = 0; i < VIDEO_GetFrameBufferSize(rmode) / sizeof(u32); i++)
 		xfb[i] = 0x1D6B1DFF;
 
-	console_init(xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight,
-	             rmode->fbWidth * VI_DISPLAY_PIX_SZ);
 	printf("\nioQuake3-GC hello\n");
 
 	VIDEO_Configure(rmode);
