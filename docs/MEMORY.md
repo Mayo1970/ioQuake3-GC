@@ -140,3 +140,13 @@ Binary and BSS targets include the native modules (QGC-10) and the GX renderer. 
 
 - `s_rawsamples`, 16908288 bytes (16.13 MB): `portable_samplepair_t s_rawsamples[MAX_RAW_STREAMS][MAX_RAW_SAMPLES]` (`snd_dma.c:88`), the raw stream rings (stream 0: music and cinematic audio; the others: VoIP and entity streams); `MAX_RAW_STREAMS` is `MAX_CLIENTS * 2 + 1` = 129 and `MAX_RAW_SAMPLES` is 16384.
 - `cin`, 2426388 bytes (2.31 MB): `static cinematics_t cin` (`cl_cin.c:130`), the RoQ cinematic decoder state; its `linbuf[512 * 512 * 4 * 2]` alone is 2097152 bytes.
+
+## 7. Size changes
+
+| Task | Change | text | data | bss | dec |
+|---|---|---:|---:|---:|---:|
+| QGC-11 | before (main 1d86ee3) | 1490694 | 409164 | 29105728 | 31005586 |
+| QGC-11 | after: interpreter and QVM loader out | 1485686 | 407836 | 29105728 | 30999250 |
+| QGC-11 | delta | -5008 | -1328 | 0 | -6336 |
+
+`.text` 1455680 (-4960) and `.rodata` 152928 (-936) from `size -A`.

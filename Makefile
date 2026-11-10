@@ -28,7 +28,7 @@ GC_MEM1_MB ?=
 QCOMMON_OBJ	:=	$(addprefix code/qcommon/,cmd.o cm_load.o cm_patch.o \
 			cm_polylib.o cm_test.o cm_trace.o common.o cvar.o files.o \
 			huffman.o ioapi.o md4.o md5.o msg.o net_chan.o q_math.o \
-			q_shared.o unzip.o vm.o vm_interpreted.o)
+			q_shared.o unzip.o vm.o)
 
 SERVER_OBJ	:=	$(addprefix code/server/,sv_bot.o sv_ccmds.o sv_client.o \
 			sv_game.o sv_init.o sv_main.o sv_net_chan.o sv_snapshot.o \

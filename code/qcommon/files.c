@@ -1373,6 +1373,7 @@ long FS_FOpenFileRead(const char *filename, fileHandle_t *file, qboolean uniqueF
 	}
 }
 
+#ifndef HW_DOL
 /*
 =================
 FS_FindVM
@@ -1466,6 +1467,7 @@ vmInterpret_t FS_FindVM(void **startSearch, char *found, int foundlen, const cha
 
 	return -1;
 }
+#endif
 
 /*
 =================
