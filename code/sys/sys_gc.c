@@ -51,6 +51,10 @@ static char gc_basepath[MAX_OSPATH];
 static qboolean gc_dvd_tried;
 static qboolean gc_dvd_mounted;
 
+static GXRModeObj gc_mode;
+static void *gc_console_xfb;
+static qboolean gc_console_hidden;
+
 #ifdef GC_DEBUG
 static FILE *gc_log;
 #endif
@@ -59,7 +63,6 @@ void GC_InitConsole(void)
 {
 	static qboolean initialized = qfalse;
 	GXRModeObj *rmode;
-	void *xfb;
 
 	if (initialized)
 		return;
@@ -68,19 +71,41 @@ void GC_InitConsole(void)
 	VIDEO_Init();
 	PAD_Init();
 
+	/* VIDEO_GetPreferredMode crashes on an unknown TV mode when given a pointer. */
 	rmode = VIDEO_GetPreferredMode(NULL);
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	if (!rmode)
+		rmode = &TVNtsc480IntDf;
+	gc_mode = *rmode;
 
-	console_init(xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight,
-	             rmode->fbWidth * VI_DISPLAY_PIX_SZ);
+	gc_console_xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(&gc_mode));
 
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
+	console_init(gc_console_xfb, 20, 20, gc_mode.fbWidth, gc_mode.xfbHeight,
+	             gc_mode.fbWidth * VI_DISPLAY_PIX_SZ);
+
+	VIDEO_Configure(&gc_mode);
+	VIDEO_SetNextFramebuffer(gc_console_xfb);
 	VIDEO_SetBlack(FALSE);
 	VIDEO_Flush();
 	VIDEO_WaitVSync();
-	if (rmode->viTVMode & VI_NON_INTERLACE)
+	if (gc_mode.viTVMode & VI_NON_INTERLACE)
 		VIDEO_WaitVSync();
+}
+
+GXRModeObj *GC_GetVideoMode(void)
+{
+	GC_InitConsole();
+	return &gc_mode;
+}
+
+void *GC_GetConsoleXFB(void)
+{
+	GC_InitConsole();
+	return gc_console_xfb;
+}
+
+void GC_SetConsoleHidden(qboolean hidden)
+{
+	gc_console_hidden = hidden;
 }
 
 qboolean GC_InitStorage(int argc, char **argv)
@@ -507,7 +532,8 @@ void *QDECL Sys_LoadDll(const char *name, qboolean useSystemLib)
 
 void Sys_Print(const char *msg)
 {
-	fputs(msg, stdout);
+	if (!gc_console_hidden)
+		fputs(msg, stdout);
 #ifdef GC_DEBUG
 	SYS_Report("%s", msg);
 	if (gc_log) {
@@ -527,6 +553,17 @@ void QDECL Sys_Error(const char *error, ...)
 	va_end(ap);
 
 	GC_InitConsole();
+
+	if (gc_console_hidden) {
+		/* GX_AbortFrame, not GX_DrawDone: a fatal error may leave the GP hung. */
+		GX_AbortFrame();
+		gc_console_hidden = qfalse;
+		printf("\x1b[2J");
+	}
+	VIDEO_SetNextFramebuffer(gc_console_xfb);
+	VIDEO_SetBlack(FALSE);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
 
 	printf("\n\n=== FATAL ERROR ===\n");
 	printf("%s\n", buf);

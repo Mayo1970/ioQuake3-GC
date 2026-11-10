@@ -316,3 +316,24 @@ With `com_hunkMegs 24`, q3dm1 with null sound runs 300 s with no error.
 | zone peak | 3034580 of 3145728 |
 
 The stock fit returns with the texture budget work (QGC-17). Matt's decision, 2026-11-10.
+
+## 12. Video modes (QGC-16)
+
+The XFB count drops from 3 to 2. XFB 0 is the boot console XFB allocated by `GC_InitConsole` (`sys_gc.c`); `GC_GX_Init` allocates only XFB 1.
+
+One XFB is `fbWidth * xfbHeight * 2` bytes, rounded as `SYS_AllocateFramebuffer` does:
+
+| Mode | Bytes |
+|---|---:|
+| 480 modes (NTSC 480i, PAL60, 480p) | 614400 |
+| 576 modes (PAL 576i, PAL component) | 737280 |
+
+Saving: one XFB, 614400 bytes in 480 modes or 737280 bytes in 576 modes.
+
+Release `.elf` size:
+
+| | text | data | bss | dec |
+|---|---:|---:|---:|---:|
+| before (main 9f69550) | 1917280 | 490084 | 8222592 | 10629956 |
+| QGC-16 | 1917952 | 490320 | 8222592 | 10630864 |
+| delta | +672 | +236 | 0 | +908 |

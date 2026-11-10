@@ -13,11 +13,11 @@
 
 #include "../renderer/tr_local.h"
 #include "gc_glimp.h"
+#include "sys_gc.h"
 
 #define GX_FIFO_SIZE    (256 * 1024)
 #define NUM_FRAMEBUFFERS 2
 
-static GXRModeObj   s_mode;   /* private copy, so libogc's mode tables stay stock */
 static GXRModeObj  *s_rmode       = NULL;
 static void        *s_framebuf[NUM_FRAMEBUFFERS] = { NULL, NULL };
 static void        *s_gp_fifo     = NULL;
@@ -29,20 +29,11 @@ qboolean GC_GX_Init(void)
     if (s_initialised)
         return qtrue;
 
-    /* Video mode is boot-time only: a vid_restart re-init reuses the XFBs (GC_GX_Shutdown
-       keeps them) instead of leaking two new ones. */
-    if (!s_framebuf[0]) {
-        VIDEO_Init();
-        VIDEO_GetPreferredMode(&s_mode);
-        s_rmode = &s_mode;
+    s_rmode = GC_GetVideoMode();
+    s_framebuf[0] = GC_GetConsoleXFB();
 
-        void *fb0 = SYS_AllocateFramebuffer(s_rmode);
-        if (!fb0) {
-            printf("[glimp] FATAL: could not allocate framebuffer\n");
-            return qfalse;
-        }
-        s_framebuf[0] = MEM_K0_TO_K1(fb0);
-
+    /* A vid_restart keeps the second XFB instead of leaking a new one. */
+    if (!s_framebuf[1]) {
         void *fb1 = SYS_AllocateFramebuffer(s_rmode);
         if (!fb1) {
             printf("[glimp] FATAL: could not allocate framebuffer\n");
@@ -84,19 +75,32 @@ qboolean GC_GX_Init(void)
     GX_CopyDisp(s_framebuf[s_fb_index], GX_TRUE);
     GX_SetDispCopyGamma(GX_GM_1_0);
 
+    GC_SetConsoleHidden(qtrue);
+    ri.Printf(PRINT_ALL,
+              "GC video: tvmode %u fb %ux%u efb %u xfb %u vi %ux%u at %u,%u xfbmode %u field %u aa %u\n",
+              (unsigned)s_rmode->viTVMode, (unsigned)s_rmode->fbWidth,
+              (unsigned)s_rmode->efbHeight, (unsigned)s_rmode->efbHeight,
+              (unsigned)s_rmode->xfbHeight, (unsigned)s_rmode->viWidth,
+              (unsigned)s_rmode->viHeight, (unsigned)s_rmode->viXOrigin,
+              (unsigned)s_rmode->viYOrigin, (unsigned)s_rmode->xfbMode,
+              (unsigned)s_rmode->field_rendering, (unsigned)s_rmode->aa);
+
     s_initialised = qtrue;
     return qtrue;
 }
 
 void GC_GX_EndFrame(void)
 {
-    /* No VIDEO_WaitVSync here - hard vsync halves FPS the instant a frame runs long. */
+    GX_DrawDone();
+    GXBE_FrameEnd();                 /* ring reset needs an idle GP */
     s_fb_index ^= 1;
     GX_CopyDisp(s_framebuf[s_fb_index], GX_TRUE);
-    GX_DrawDone();
-    GXBE_FrameEnd();
+    GX_Flush();
     VIDEO_SetNextFramebuffer(s_framebuf[s_fb_index]);
     VIDEO_Flush();
+    /* r_swapInterval 0 (default) does not wait, so a long frame does not drop to half rate. */
+    if (r_swapInterval->integer)
+        VIDEO_WaitVSync();
 }
 
 void GC_GX_Shutdown(void)
@@ -107,23 +111,26 @@ void GC_GX_Shutdown(void)
     GX_Flush();
     VIDEO_SetBlack(TRUE);
     VIDEO_Flush();
+    GC_SetConsoleHidden(qfalse);
     if (s_gp_fifo) { free(s_gp_fifo); s_gp_fifo = NULL; }
     s_initialised = qfalse;
 }
 
 GXRModeObj *GC_GX_GetRMode(void)
 {
-    return s_rmode;
+    return s_rmode ? s_rmode : GC_GetVideoMode();
 }
 
 int GC_GX_GetEFBHeight(void)
 {
-    return s_rmode ? (int)s_rmode->efbHeight : 480;
+    GXRModeObj *rmode = s_rmode ? s_rmode : GC_GetVideoMode();
+    return (int)rmode->efbHeight;
 }
 
 int GC_GX_GetXFBHeight(void)
 {
-    return s_rmode ? (int)s_rmode->xfbHeight : 480;
+    GXRModeObj *rmode = s_rmode ? s_rmode : GC_GetVideoMode();
+    return (int)rmode->xfbHeight;
 }
 
 void GLimp_Init( void )
@@ -137,7 +144,7 @@ void GLimp_Init( void )
 
     GXRModeObj *rmode = GC_GX_GetRMode();
 
-    glConfig.vidWidth      = rmode ? (int)rmode->fbWidth   : 640;
+    glConfig.vidWidth      = rmode->fbWidth;
     glConfig.vidHeight     = GC_GX_LOGICAL_HEIGHT;   /* tr_gx.c maps it onto the EFB */
     glConfig.windowAspect  = (float)glConfig.vidWidth / (float)glConfig.vidHeight;
     glConfig.colorBits     = 24;

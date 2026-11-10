@@ -70,7 +70,7 @@ Every buffer the GP reads or writes is 32-byte aligned. `DCFlushRange` runs afte
 | Buffer | File | Alignment | `DCFlushRange` | `GX_InvalidateTexAll` |
 |---|---|---|---|---|
 | GX FIFO (256 KB) | `sys/gc_glimp.c` | `memalign( 32, GX_FIFO_SIZE )` | not needed; handed to `GX_Init` | no |
-| XFBs (2) | `sys/gc_glimp.c` | `SYS_AllocateFramebuffer`, libogc 32-byte aligned | not needed; written by `GX_CopyDisp` | no |
+| Console XFB + XFB 1 (2) | `sys/sys_gc.c`, `sys/gc_glimp.c` | XFB 0 is the console XFB from `GC_InitConsole`; XFB 1 from `SYS_AllocateFramebuffer`, libogc 32-byte aligned | not needed; written by `GX_CopyDisp` | no |
 | Texture buffer | `renderer/tr_gx_texture.c` | `memalign( 32, size )` | after the CPU encodes the mip chain | after every upload |
 | Sub-image upload | `renderer/tr_gx_texture.c` | same texture buffer | after re-encoding | after the re-upload |
 | Vertex staging ring (2 x 128 KB) | `renderer/tr_gx.c` | `memalign( 32, 2 * GXBE_RING_HALF )` | staged block after copy; client arrays in the fallback path | no; `GX_InvVtxCache` after the address reuse |
@@ -81,3 +81,32 @@ Every buffer the GP reads or writes is 32-byte aligned. `DCFlushRange` runs afte
 
 `GX_InvalidateTexAll` is called only in `tr_gx_texture.c`, once at the end of `GXBE_Upload32` and once in `GXBE_TexSubImage2D`.
 Texture data is never cached between uploads; the GP sees the flushed buffer through the loaded `GXTexObj`.
+
+## 4. Video modes and frame loop (QGC-16)
+
+One video mode serves the whole program. `GC_InitConsole` calls `VIDEO_GetPreferredMode( NULL )` once and copies the result into `gc_mode`; `GC_GetVideoMode` returns that copy. If the call returns `NULL` (an unknown TV mode such as `VI_DEBUG`), the fallback is `TVNtsc480IntDf`. Every size in the GameCube video code comes from the `GXRModeObj` fields; there is no hardcoded 640 or 480.
+
+The GX renderer reuses the console XFB as XFB 0 (`GC_GetConsoleXFB`) and allocates only one more. After the renderer starts, console text is hidden: `Sys_Print` stops writing to the XFB, because XFB 0 now holds a GX frame. `Sys_Error` aborts the GX frame, restores the console XFB and shows the message on screen even after the renderer has started.
+
+| Mode | libogc table | fbWidth | efbHeight | xfbHeight | viHeight | xfbMode | Y scale |
+|---|---|---:|---:|---:|---:|---|---:|
+| NTSC 480i | `TVNtsc480IntDf` | 640 | 480 | 480 | 480 | `VI_XFBMODE_DF` | 1.00 |
+| PAL 576i | `TVPal576IntDfScale` | 640 | 480 | 576 | 576 | `VI_XFBMODE_DF` | 1.20 |
+| PAL60 (EuRGB60 480i) | `TVEurgb60Hz480IntDf` | 640 | 480 | 480 | 480 | `VI_XFBMODE_DF` | 1.00 |
+| 480p NTSC | `TVNtsc480Prog` | 640 | 480 | 480 | 480 | `VI_XFBMODE_SF` | 1.00 |
+| 480p PAL component | `TVPal576ProgScale` | 640 | 480 | 576 | 576 | `VI_XFBMODE_SF` | 1.20 |
+
+`GC_GX_EndFrame` runs in this order:
+
+```
+GX_DrawDone
+GXBE_FrameEnd
+swap XFB
+GX_CopyDisp
+GX_Flush
+VIDEO_SetNextFramebuffer
+VIDEO_Flush
+VIDEO_WaitVSync only when r_swapInterval is not 0
+```
+
+`GX_Flush` pushes the copy out of the write-gather pipe before the VI can show the XFB. The default `r_swapInterval` is 0, so no vsync wait runs and a long frame does not drop to half rate.
