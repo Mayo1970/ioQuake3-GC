@@ -1,0 +1,137 @@
+# Memory baseline
+
+## 1. How to measure
+
+- Docker image: `devkitpro/devkitppc:20261102`.
+- Base: `main` at `3c459d2d9367a98d9fd389b4743ffe4320721132` (Merge pull request #5 from Mayo1970/task/QGC-8-engine-core).
+- Release build, from the repository root:
+
+```
+bash tools/docker-make.sh clean
+bash tools/docker-make.sh
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src devkitpro/devkitppc:20261102 bash -c 'export PATH=/opt/devkitpro/devkitPPC/bin:$PATH; powerpc-eabi-size build/ioquake3_gc.elf'
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src devkitpro/devkitppc:20261102 bash -c 'export PATH=/opt/devkitpro/devkitPPC/bin:$PATH; powerpc-eabi-size -A build/ioquake3_gc.elf'
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src devkitpro/devkitppc:20261102 bash -c 'export PATH=/opt/devkitpro/devkitPPC/bin:$PATH; powerpc-eabi-nm --size-sort -S -r build/ioquake3_gc.elf'
+```
+
+- Debug build used only to resolve source lines:
+
+```
+bash tools/docker-make.sh clean
+bash tools/docker-make.sh DEBUG=1
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/src" -w /src devkitpro/devkitppc:20261102 bash -c 'export PATH=/opt/devkitpro/devkitPPC/bin:$PATH; powerpc-eabi-nm -l --size-sort -S -r build/ioquake3_gc.elf'
+```
+
+## 2. Binary
+
+Berkeley format, release ELF:
+
+```
+   text	   data	    bss	    dec	    hex	filename
+ 914326	 254652	25711264	26880242	19a28f2	build/ioquake3_gc.elf
+```
+
+`powerpc-eabi-size -A`, without the `.debug_*` and `.comment` lines (1 MB = 1048576 bytes):
+
+| section | bytes | MB |
+|---|---:|---:|
+| `.init` | 148 | 0.00 |
+| `.text` | 896224 | 0.85 |
+| `.rodata` | 100032 | 0.10 |
+| `.sdata2` | 6 | 0.00 |
+| `.eh_frame_hdr` | 17948 | 0.02 |
+| `.eh_frame` | 133264 | 0.13 |
+| `.ctors` | 12 | 0.00 |
+| `.dtors` | 8 | 0.00 |
+| `.data` | 21228 | 0.02 |
+| `.sdata` | 108 | 0.00 |
+| `.sbss` | 452 | 0.00 |
+| `.bss` | 25710812 | 24.52 |
+| `.gnu.attributes` | 18 | 0.00 |
+
+## 3. Top 40 BSS symbols
+
+Sizes from the release ELF. Source file from the `DEBUG=1` ELF, path relative to `code/`.
+
+| Rank | Symbol | Bytes | KB | Source file |
+|---:|---|---:|---:|---|
+| 1 | `s_rawsamples` | 16908288 | 16512.0 | code/client/snd_dma.c:88 |
+| 2 | `cin` | 2426388 | 2369.5 | code/client/cl_cin.c:130 |
+| 3 | `cls` | 893132 | 872.2 | code/client/cl_main.c:127 |
+| 4 | `cl` | 679024 | 663.1 | code/client/cl_main.c:125 |
+| 5 | `facets` | 655360 | 640.0 | code/qcommon/cm_patch.c:421 |
+| 6 | `buckets` | 655360 | 640.0 | code/server/sv_main.c:378 |
+| 7 | `vq8` | 524288 | 512.0 | code/client/cl_cin.c:74 |
+| 8 | `s_gcMainStack` | 524288 | 512.0 | code/sys/gc_main.c:13 |
+| 9 | `s_knownSfx` | 393216 | 384.0 | code/client/snd_dma.c:73 |
+| 10 | `sv` | 312388 | 305.1 | code/server/sv_main.c:30 |
+| 11 | `clc` | 173628 | 169.6 | code/client/cl_main.c:126 |
+| 12 | `cvar_indexes` | 147456 | 144.0 | code/qcommon/cvar.c:32 |
+| 13 | `cl_serverStatusList` | 131904 | 128.8 | code/client/cl_main.c:152 |
+| 14 | `vq4` | 131072 | 128.0 | code/client/cl_cin.c:73 |
+| 15 | `cmd_text_buf` | 131072 | 128.0 | code/qcommon/cmd.c:38 |
+| 16 | `svs` | 122976 | 120.1 | code/server/sv_main.c:29 |
+| 17 | `con` | 65608 | 64.1 | code/client/cl_console.c:58 |
+| 18 | `string.2` | 64000 | 62.5 | code/qcommon/q_shared.c:990 |
+| 19 | `msgHuff` | 57400 | 56.1 | code/qcommon/msg.c:25 |
+| 20 | `loopSounds` | 57344 | 56.0 | code/client/snd_dma.c:84 |
+| 21 | `loopbacks` | 44944 | 43.9 | code/qcommon/net_chan.c:436 |
+| 22 | `pcmCaptureBuffer.0` | 44100 | 43.1 | code/client/cl_avi.c:520 |
+| 23 | `serverBans` | 40960 | 40.0 | code/server/sv_main.c:65 |
+| 24 | `planes` | 40960 | 40.0 | code/qcommon/cm_patch.c:418 |
+| 25 | `cl_pinglist` | 34048 | 33.2 | code/client/cl_main.c:140 |
+| 26 | `vq2` | 32768 | 32.0 | code/client/cl_cin.c:72 |
+| 27 | `paintbuffer` | 32768 | 32.0 | code/client/snd_mix.c:30 |
+| 28 | `com_pushedEvents` | 24576 | 24.0 | code/qcommon/common.c:1899 |
+| 29 | `cinTable` | 19520 | 19.1 | code/client/cl_cin.c:131 |
+| 30 | `fsh` | 18432 | 18.0 | code/qcommon/files.c:286 |
+| 31 | `value.0` | 16384 | 16.0 | code/qcommon/q_shared.c:1044 |
+| 32 | `s_excptStack` | 16384 | 16.0 | libogc |
+| 33 | `fs_serverReferencedPaks` | 16384 | 16.0 | code/qcommon/files.c:300 |
+| 34 | `fs_serverReferencedPakNames` | 16384 | 16.0 | code/qcommon/files.c:301 |
+| 35 | `fs_serverPaks` | 16384 | 16.0 | code/qcommon/files.c:294 |
+| 36 | `fs_serverPakNames` | 16384 | 16.0 | code/qcommon/files.c:295 |
+| 37 | `cmd_tokenized` | 9216 | 9.0 | code/qcommon/cmd.c:351 |
+| 38 | `historyEditLines` | 8576 | 8.4 | code/client/cl_keys.c:30 |
+| 39 | `bspworld` | 8208 | 8.0 | code/botlib/be_aas_bspq3.c:87 |
+| 40 | `string.2` | 8192 | 8.0 | code/qcommon/msg.c:472 |
+
+Sum of the 40 sizes: 25519764 bytes (24.34 MB).
+Total `.bss`: 25710812 bytes (24.52 MB).
+
+## 4. Runtime measurements
+
+| Line | Value |
+|---|---|
+| boot Arena1 | pending (supervisor smoke) |
+| Arena1 after `Com_Init` | pending (supervisor smoke) |
+| Arena1 after map load | pending (supervisor smoke) |
+| hunk total | pending (supervisor smoke) |
+| hunk used (low + high permanent) | pending (supervisor smoke) |
+| zone total | pending (supervisor smoke) |
+| zone used | pending (supervisor smoke) |
+| small zone used | pending (supervisor smoke) |
+
+## 5. Budget for 24 MB
+
+1 MB = 1048576 bytes.
+
+| Line | Measured now (MB) | Target (MB) | Notes |
+|---|---:|---|---|
+| binary (text + data + rodata) | 0.97 | TBD | `.text` 896224 + `.data` 21228 + `.rodata` 100032 |
+| BSS (incl. the 512 KB main stack) | 24.52 | TBD | `s_gcMainStack` is 524288 bytes |
+| XFB | 0.59 | TBD | 1 framebuffer x 640 x 480 x 2 bytes (NTSC); PAL height 576 gives 0.70 MB |
+| GX FIFO | 0.00 | TBD | no GX yet |
+| hunk | 24.00 | TBD | `com_hunkMegs` default 24 |
+| zone | 12.00 | TBD | `com_zoneMegs` default 12 |
+| sound | 0.00 | TBD | `com_soundMegs` default is 8 MB; the null sound driver allocates nothing |
+| textures | 0.00 | TBD | null renderer |
+| other (libogc, malloc, OS low memory) | 0.00 | TBD | not measured; libogc BSS is inside the BSS line |
+| total | 62.07 | TBD | sum of measured column: 65091884 bytes |
+
+24 MB = 25165824 bytes.
+
+## 6. Notes
+
+- `s_rawsamples`, 16908288 bytes (16.13 MB): `portable_samplepair_t s_rawsamples[MAX_RAW_STREAMS][MAX_RAW_SAMPLES]` (`snd_dma.c:88`), the raw streaming sample ring for background music; `MAX_RAW_STREAMS` is `MAX_CLIENTS * 2 + 1` = 129 and `MAX_RAW_SAMPLES` is 16384.
+- `cin`, 2426388 bytes (2.31 MB): `static cinematics_t cin` (`cl_cin.c:130`), the RoQ cinematic decoder state; its `linbuf[512 * 512 * 4 * 2]` alone is 2097152 bytes.
