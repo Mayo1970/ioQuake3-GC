@@ -281,6 +281,18 @@ static int dvd_stat_r(struct _reent *r, const char *file, struct stat *st)
 	return 0;
 }
 
+/* EEXIST lets Sys_Mkdir accept folders that are already on the disc. */
+static int dvd_mkdir_r(struct _reent *r, const char *path, int mode)
+{
+	u32 entry;
+
+	if (fst_resolve(path, &entry) && fst_is_dir(entry))
+		r->_errno = EEXIST;
+	else
+		r->_errno = EROFS;
+	return -1;
+}
+
 static DIR_ITER *dvd_diropen_r(struct _reent *r, DIR_ITER *dirState,
                                const char *path)
 {
@@ -337,6 +349,7 @@ static const devoptab_t dvd_devoptab = {
 	.seek_r = dvd_seek_r,
 	.fstat_r = dvd_fstat_r,
 	.stat_r = dvd_stat_r,
+	.mkdir_r = dvd_mkdir_r,
 	.dirStateSize = sizeof(gc_dvd_dir_t),
 	.diropen_r = dvd_diropen_r,
 	.dirreset_r = dvd_dirreset_r,
@@ -382,7 +395,7 @@ qboolean GC_DVD_Mount(void)
 	    dvd_fst_entries * GC_DVD_ENTRY_SIZE > fst_size)
 		return qfalse;
 
-	if (AddDevice(&dvd_devoptab) != 0)
+	if (AddDevice(&dvd_devoptab) < 0)
 		return qfalse;
 
 	return qtrue;

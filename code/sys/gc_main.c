@@ -5,6 +5,10 @@
 #include "sys_local.h"
 #include "sys_gc.h"
 
+/* libogc's 128 KB main stack overflows in map load; 512 KB as in the Wii port. */
+static unsigned char s_gcMainStack[512 * 1024] __attribute__((aligned(8)));
+void *__ppc_main_sp __attribute__((section(".sdata"))) = &s_gcMainStack[sizeof(s_gcMainStack)];
+
 int main(int argc, char **argv)
 {
 	char commandLine[MAX_STRING_CHARS] = { 0 };

@@ -16,24 +16,25 @@ static void Null_BeginRegistration(glconfig_t *config)
 	Q_strncpyz(config->version_string, "null", sizeof(config->version_string));
 }
 
+/* cgame treats handle 0 as a failed load, so stubs return 1. */
 static qhandle_t Null_RegisterModel(const char *name)
 {
-	return 0;
+	return 1;
 }
 
 static qhandle_t Null_RegisterSkin(const char *name)
 {
-	return 0;
+	return 1;
 }
 
 static qhandle_t Null_RegisterShader(const char *name)
 {
-	return 0;
+	return 1;
 }
 
 static qhandle_t Null_RegisterShaderNoMip(const char *name)
 {
-	return 0;
+	return 1;
 }
 
 static void Null_LoadWorld(const char *name)
