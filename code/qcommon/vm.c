@@ -48,7 +48,9 @@ vm_t	vmTable[MAX_VM];
 
 
 void VM_VmInfo_f( void );
+#ifndef HW_DOL
 void VM_VmProfile_f( void );
+#endif
 
 
 
@@ -74,13 +76,16 @@ void VM_Init( void ) {
 	Cvar_Get( "vm_game", "2", CVAR_ARCHIVE );	// !@# SHIP WITH SET TO 2
 	Cvar_Get( "vm_ui", "2", CVAR_ARCHIVE );		// !@# SHIP WITH SET TO 2
 
+#ifndef HW_DOL
 	Cmd_AddCommand ("vmprofile", VM_VmProfile_f );
+#endif
 	Cmd_AddCommand ("vminfo", VM_VmInfo_f );
 
 	Com_Memset( vmTable, 0, sizeof( vmTable ) );
 }
 
 
+#ifndef HW_DOL
 /*
 ===============
 VM_ValueToSymbol
@@ -296,6 +301,7 @@ void VM_LoadSymbols( vm_t *vm ) {
 	Com_Printf( "%i symbols parsed from %s\n", count, symbols );
 	FS_FreeFile( mapfile.v );
 }
+#endif
 
 /*
 ============
@@ -356,6 +362,7 @@ intptr_t QDECL VM_DllSyscall( intptr_t arg, ... ) {
 }
 
 
+#ifndef HW_DOL
 /*
 =================
 VM_LoadQVM
@@ -518,6 +525,7 @@ vmHeader_t *VM_LoadQVM( vm_t *vm, qboolean alloc, qboolean unpure)
 
 	return header.h;
 }
+#endif
 
 /*
 =================
@@ -532,7 +540,9 @@ even if the client is pure, so take "unpure" as argument.
 */
 vm_t *VM_Restart(vm_t *vm, qboolean unpure)
 {
+#ifndef HW_DOL
 	vmHeader_t	*header;
+#endif
 
 	// DLL's can't be restarted in place
 	if ( vm->dllHandle ) {
@@ -548,6 +558,10 @@ vm_t *VM_Restart(vm_t *vm, qboolean unpure)
 		return vm;
 	}
 
+#ifdef HW_DOL
+	Com_Error( ERR_FATAL, "VM_Restart: %s is not native", vm->name );
+	return NULL;
+#else
 	// load the image
 	Com_Printf("VM_Restart()\n");
 
@@ -561,6 +575,7 @@ vm_t *VM_Restart(vm_t *vm, qboolean unpure)
 	FS_FreeFile(header);
 
 	return vm;
+#endif
 }
 
 /*
@@ -574,16 +589,21 @@ it will attempt to load as a system dll
 vm_t *VM_Create( const char *module, intptr_t (*systemCalls)(intptr_t *), 
 				vmInterpret_t interpret ) {
 	vm_t		*vm;
+	int			i;
+#ifndef HW_DOL
 	vmHeader_t	*header;
-	int			i, remaining, retval;
+	int			remaining, retval;
 	char filename[MAX_OSPATH];
 	void *startSearch = NULL;
+#endif
 
 	if ( !module || !module[0] || !systemCalls ) {
 		Com_Error( ERR_FATAL, "VM_Create: bad parms" );
 	}
 
+#ifndef HW_DOL
 	remaining = Hunk_MemoryRemaining();
+#endif
 
 	// see if we already have the VM
 	for ( i = 0 ; i < MAX_VM ; i++ ) {
@@ -628,7 +648,7 @@ vm_t *VM_Create( const char *module, intptr_t (*systemCalls)(intptr_t *),
 			FS_FCloseFile(f);
 	}
 	return vm;
-#endif
+#else
 
 	do
 	{
@@ -704,6 +724,7 @@ vm_t *VM_Create( const char *module, intptr_t (*systemCalls)(intptr_t *),
 	Com_Printf("%s loaded in %d bytes on the hunk\n", module, remaining - Hunk_MemoryRemaining());
 
 	return vm;
+#endif
 }
 
 /*
@@ -857,6 +878,10 @@ intptr_t QDECL VM_Call( vm_t *vm, int callnum, ... )
                             args[4],  args[5],  args[6], args[7],
                             args[8],  args[9], args[10], args[11]);
 	} else {
+#ifdef HW_DOL
+		Com_Error( ERR_FATAL, "VM_Call: %s is not native", vm->name );
+		r = 0;
+#else
 #if ( id386 || idsparc ) && !defined __clang__ // calling convention doesn't need conversion in some cases
 #ifndef NO_VM_COMPILED
 		if ( vm->compiled )
@@ -884,6 +909,7 @@ intptr_t QDECL VM_Call( vm_t *vm, int callnum, ... )
 #endif
 			r = VM_CallInterpreted( vm, &a.callnum );
 #endif
+#endif
 	}
 	--vm->callLevel;
 
@@ -894,6 +920,7 @@ intptr_t QDECL VM_Call( vm_t *vm, int callnum, ... )
 
 //=================================================================
 
+#ifndef HW_DOL
 static int QDECL VM_ProfileSort( const void *a, const void *b ) {
 	vmSymbol_t	*sa, *sb;
 
@@ -955,6 +982,7 @@ void VM_VmProfile_f( void ) {
 
 	Z_Free( sorted );
 }
+#endif
 
 /*
 ==============
@@ -988,6 +1016,7 @@ void VM_VmInfo_f( void ) {
 	}
 }
 
+#ifndef HW_DOL
 /*
 ===============
 VM_LogSyscalls
@@ -1028,3 +1057,4 @@ void VM_BlockCopy(unsigned int dest, unsigned int src, size_t n)
 
 	Com_Memcpy(currentVM->dataBase + dest, currentVM->dataBase + src, n);
 }
+#endif
