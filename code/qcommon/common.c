@@ -37,9 +37,16 @@ int demo_protocols[] =
 #define MAX_NUM_ARGVS	50
 
 #define MIN_DEDICATED_COMHUNKMEGS 1
+#ifdef HW_DOL
+/* Provisional values; QGC-13 sets the final ones. */
+#define MIN_COMHUNKMEGS		8
+#define DEF_COMHUNKMEGS 	24
+#define DEF_COMZONEMEGS		12
+#else
 #define MIN_COMHUNKMEGS		56
 #define DEF_COMHUNKMEGS 	128
 #define DEF_COMZONEMEGS		24
+#endif
 #define DEF_COMHUNKMEGS_S	XSTRING(DEF_COMHUNKMEGS)
 #define DEF_COMZONEMEGS_S	XSTRING(DEF_COMZONEMEGS)
 

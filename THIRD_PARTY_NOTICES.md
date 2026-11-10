@@ -4,7 +4,8 @@ ioQuake3-GC is under the GNU General Public License, version 2 (`LICENSE`). It i
 keeps its own licence. This file ships beside every `.dol` in a release.
 
 QGC-5 vendored the engine baseline into `code/` from old-mac-quake3 commit
-`2f187c09c8a816bb62d5b7ccdbee24c65a1581fb`, unchanged.
+`2f187c09c8a816bb62d5b7ccdbee24c65a1581fb`, unchanged. QGC-8 added `code/ui/ui_public.h` from the same commit,
+unchanged.
 
 ## Summary
 

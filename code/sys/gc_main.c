@@ -1,46 +1,37 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <gccore.h>
+#include <string.h>
+
+#include "sys_local.h"
+#include "sys_gc.h"
 
 int main(int argc, char **argv)
 {
-	GXRModeObj *rmode;
-	u32 *xfb;
-	u32 i;
+	char commandLine[MAX_STRING_CHARS] = { 0 };
+	int i;
 
-	VIDEO_Init();
-	PAD_Init();
+	GC_WaitForStorage(argc, argv);
 
-	rmode = VIDEO_GetPreferredMode(NULL);
-	xfb = MEM_K0_TO_K1(SYS_AllocateFramebuffer(rmode));
+	Sys_Milliseconds();
 
-	console_init(xfb, 20, 20, rmode->fbWidth, rmode->xfbHeight,
-	             rmode->fbWidth * VI_DISPLAY_PIX_SZ);
+	for (i = 1; i < argc; i++) {
+		const qboolean containsSpaces = strchr(argv[i], ' ') != NULL;
 
-	for (i = 0; i < VIDEO_GetFrameBufferSize(rmode) / sizeof(u32); i++)
-		xfb[i] = 0x1D6B1DFF;
-
-	printf("\nioQuake3-GC stub (%s)\n", BASEGAME);
-#ifdef GC_DEBUG
-	printf("debug build\n");
-#endif
-
-	VIDEO_Configure(rmode);
-	VIDEO_SetNextFramebuffer(xfb);
-	VIDEO_SetBlack(FALSE);
-	VIDEO_Flush();
-	VIDEO_WaitVSync();
-	if (rmode->viTVMode & VI_NON_INTERLACE)
-		VIDEO_WaitVSync();
-
-	for (i = 0; i < 180; i++) {
-		PAD_ScanPads();
-		if (PAD_ButtonsDown(0) & PAD_BUTTON_START)
-			break;
-		VIDEO_WaitVSync();
+		if (containsSpaces)
+			Q_strcat(commandLine, sizeof(commandLine), "\"");
+		Q_strcat(commandLine, sizeof(commandLine), argv[i]);
+		if (containsSpaces)
+			Q_strcat(commandLine, sizeof(commandLine), "\"");
+		Q_strcat(commandLine, sizeof(commandLine), " ");
 	}
 
-	exit(0);
+	Com_Init(commandLine);
+	NET_Init();
+
+	for (;;) {
+		IN_Frame();
+		Com_Frame();
+	}
 
 	return 0;
 }
