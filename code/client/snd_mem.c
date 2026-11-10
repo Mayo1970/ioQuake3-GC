@@ -32,7 +32,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "snd_local.h"
 #include "snd_codec.h"
 
+#ifdef HW_DOL
+#define DEF_COMSOUNDMEGS "1"
+#else
 #define DEF_COMSOUNDMEGS "8"
+#endif
 
 /*
 ===============================================================================
@@ -78,10 +82,22 @@ void SND_setup(void) {
 	sndBuffer *p, *q;
 	cvar_t	*cv;
 	int scs;
+#ifdef HW_DOL
+	int megs;
+#endif
 
 	cv = Cvar_Get( "com_soundMegs", DEF_COMSOUNDMEGS, CVAR_LATCH | CVAR_ARCHIVE );
 
+#ifdef HW_DOL
+	// On the GameCube com_soundMegs counts megabytes; upstream counts units of 1536 chunks (about 3 MB).
+	megs = cv->integer;
+	if ( megs < 1 ) {
+		megs = 1;
+	}
+	scs = ( megs * 1024 * 1024 ) / sizeof( sndBuffer );
+#else
 	scs = (cv->integer*1536);
+#endif
 
 	buffer = malloc(scs*sizeof(sndBuffer) );
 	// allocate the stack based hunk allocator
