@@ -26,6 +26,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef __QGL_H__
 #define __QGL_H__
 
+#ifdef HW_DOL
+#	include "qgl_gc.h"
+#endif
+
+#ifndef HW_DOL
+
 #ifdef USE_LOCAL_HEADERS
 #	include "SDL_opengl.h"
 #else
@@ -376,5 +382,7 @@ extern void (APIENTRYP qglUnlockArraysEXT) (void);
 #define qglVertex4sv glVertex4sv
 #define qglVertexPointer glVertexPointer
 #define qglViewport glViewport
+
+#endif
 
 #endif

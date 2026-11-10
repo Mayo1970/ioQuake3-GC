@@ -24,6 +24,18 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifndef TR_LOCAL_H
 #define TR_LOCAL_H
 
+#ifdef HW_DOL
+#include <gccore.h>
+
+/* libogc COLOR_* clash with the q_shared color escapes. */
+#undef COLOR_BLACK
+#undef COLOR_RED
+#undef COLOR_GREEN
+#undef COLOR_YELLOW
+#undef COLOR_BLUE
+#undef COLOR_WHITE
+#endif
+
 #include "../qcommon/q_shared.h"
 #include "../qcommon/qfiles.h"
 #include "../qcommon/qcommon.h"
@@ -1747,5 +1759,9 @@ void R_InitFreeType( void );
 void R_DoneFreeType( void );
 void RE_RegisterFont(const char *fontName, int pointSize, fontInfo_t *font);
 
+#ifdef HW_DOL
+#include "tr_gx.h"
+void R_MipMap( byte *in, int width, int height );
+#endif
 
 #endif //TR_LOCAL_H

@@ -28,7 +28,7 @@ GC_MEM1_MB ?=
 QCOMMON_OBJ	:=	$(addprefix code/qcommon/,cmd.o cm_load.o cm_patch.o \
 			cm_polylib.o cm_test.o cm_trace.o common.o cvar.o files.o \
 			huffman.o ioapi.o md4.o md5.o msg.o net_chan.o q_math.o \
-			q_shared.o unzip.o vm.o)
+			q_shared.o unzip.o vm.o puff.o)
 
 SERVER_OBJ	:=	$(addprefix code/server/,sv_bot.o sv_ccmds.o sv_client.o \
 			sv_game.o sv_init.o sv_main.o sv_net_chan.o sv_snapshot.o \
@@ -51,7 +51,27 @@ CLIENT_OBJ	:=	$(addprefix code/client/,cl_avi.o cl_cgame.o cl_cin.o \
 NULL_OBJ	:=	code/null/null_input.o
 
 SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o sys_gc.o gc_dvd.o \
-			gc_null_renderer.o gc_null_snddma.o gc_net_null.o gc_modules.o)
+			gc_glimp.o gc_null_snddma.o gc_net_null.o gc_modules.o)
+
+RENDERER_OBJ	:=	$(addprefix code/renderer/,tr_animation.o \
+			tr_backend.o tr_bsp.o tr_cmds.o tr_curve.o tr_flares.o \
+			tr_font.o tr_image.o tr_image_png.o tr_image_jpg.o \
+			tr_image_bmp.o tr_image_tga.o tr_image_pcx.o tr_init.o \
+			tr_light.o tr_main.o tr_marks.o tr_mesh.o tr_model.o \
+			tr_model_iqm.o tr_noise.o tr_scene.o tr_shade.o \
+			tr_shade_calc.o tr_shader.o tr_shadows.o tr_sky.o \
+			tr_surface.o tr_world.o tr_gx.o tr_gx_texture.o qgl_gc.o)
+
+JPEG_OBJ	:=	$(addprefix code/jpeg-8c/,jaricom.o jcapimin.o \
+			jcapistd.o jcarith.o jccoefct.o jccolor.o jcdctmgr.o \
+			jchuff.o jcinit.o jcmainct.o jcmarker.o jcmaster.o \
+			jcomapi.o jcparam.o jcprepct.o jcsample.o jctrans.o \
+			jdapimin.o jdapistd.o jdarith.o jdatadst.o jdatasrc.o \
+			jdcoefct.o jdcolor.o jddctmgr.o jdhuff.o jdinput.o \
+			jdmainct.o jdmarker.o jdmaster.o jdmerge.o jdpostct.o \
+			jdsample.o jdtrans.o jerror.o jfdctflt.o jfdctfst.o \
+			jfdctint.o jidctflt.o jidctfst.o jidctint.o jmemmgr.o \
+			jmemnobs.o jquant1.o jquant2.o jutils.o)
 
 ZLIB_CFILES	:=	$(notdir $(wildcard $(CURDIR)/code/zlib/*.c))
 ZLIB_OBJ	:=	$(addprefix code/zlib/,$(ZLIB_CFILES:.c=.o))
@@ -120,10 +140,11 @@ export LD	:=	$(CC)
 
 export OFILES	:=	$(QCOMMON_OBJ) $(SERVER_OBJ) $(BOTLIB_OBJ) \
 			$(CLIENT_OBJ) $(NULL_OBJ) $(SYS_OBJ) $(ZLIB_OBJ) \
-			$(MODULE_OBJS)
+			$(RENDERER_OBJ) $(JPEG_OBJ) $(MODULE_OBJS)
 
 export BOTLIB_OBJ
 export ZLIB_OBJ
+export JPEG_OBJ
 export REPO_ROOT :=	$(CURDIR)
 
 OBJDIRS		:=	$(sort $(dir $(OFILES)))
@@ -163,6 +184,8 @@ all: $(OUTPUT).dol
 $(BOTLIB_OBJ): CFLAGS += -DBOTLIB
 code/qcommon/ioapi.o: CFLAGS += -DUSE_INTERNAL_ZLIB
 $(ZLIB_OBJ): CFLAGS += -DUSE_INTERNAL_ZLIB -I$(REPO_ROOT)/code/zlib
+$(JPEG_OBJ): CFLAGS += -DUSE_INTERNAL_JPEG -I$(REPO_ROOT)/code/jpeg-8c
+code/renderer/tr_image_jpg.o: CFLAGS += -DUSE_INTERNAL_JPEG -I$(REPO_ROOT)/code/jpeg-8c
 
 # Each module is partially linked, then all globals except its entry points and
 # data/bss markers are hidden so it cannot resolve into the engine or another module.

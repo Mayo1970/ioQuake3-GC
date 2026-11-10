@@ -270,7 +270,19 @@ void RB_TestFlare( flare_t *f ) {
 	glState.finishCalled = qfalse;
 
 	// read back the z buffer contents
+#ifdef HW_DOL
+	{
+		// viewportY is top-down here, so only the within-viewport offset
+		// needs flipping - GXBE_PeekDepth's depth is already GL-equivalent.
+		int px = (int)f->windowX;
+		int py = backEnd.viewParms.viewportY
+		       + backEnd.viewParms.viewportHeight - 1
+		       - ( (int)f->windowY - backEnd.viewParms.viewportY );
+		depth = GXBE_PeekDepth( px, py );
+	}
+#else
 	qglReadPixels( f->windowX, f->windowY, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth );
+#endif
 
 	screenZ = backEnd.viewParms.projectionMatrix[14] / 
 		( ( 2*depth - 1 ) * backEnd.viewParms.projectionMatrix[11] - backEnd.viewParms.projectionMatrix[10] );
@@ -504,6 +516,29 @@ void RB_RenderFlares (void) {
 		qglDisable (GL_CLIP_PLANE0);
 	}
 
+#ifdef HW_DOL
+	{
+		/* Build ortho projection directly (GX has no matrix stack). */
+		float left   = backEnd.viewParms.viewportX;
+		float right  = backEnd.viewParms.viewportX + backEnd.viewParms.viewportWidth;
+		float bottom = backEnd.viewParms.viewportY;
+		float top    = backEnd.viewParms.viewportY + backEnd.viewParms.viewportHeight;
+		float znear  = -99999.0f, zfar = 99999.0f;
+		float m[16];
+
+		Com_Memset( m, 0, sizeof( m ) );
+		m[0]  = 2.0f / ( right - left );
+		m[5]  = 2.0f / ( top - bottom );
+		m[10] = -2.0f / ( zfar - znear );
+		m[12] = -( right + left ) / ( right - left );
+		m[13] = -( top + bottom ) / ( top - bottom );
+		m[14] = -( zfar + znear ) / ( zfar - znear );
+		m[15] = 1.0f;
+
+		GXBE_LoadProjectionGL( m );
+		GXBE_LoadIdentityModelview();
+	}
+#else
 	qglPushMatrix();
     qglLoadIdentity();
 	qglMatrixMode( GL_PROJECTION );
@@ -512,6 +547,7 @@ void RB_RenderFlares (void) {
 	qglOrtho( backEnd.viewParms.viewportX, backEnd.viewParms.viewportX + backEnd.viewParms.viewportWidth,
 			  backEnd.viewParms.viewportY, backEnd.viewParms.viewportY + backEnd.viewParms.viewportHeight,
 			  -99999, 99999 );
+#endif
 
 	for ( f = r_activeFlares ; f ; f = f->next ) {
 		if ( f->frameSceneNum == backEnd.viewParms.frameSceneNum
@@ -521,8 +557,10 @@ void RB_RenderFlares (void) {
 		}
 	}
 
+#ifndef HW_DOL
 	qglPopMatrix();
 	qglMatrixMode( GL_MODELVIEW );
 	qglPopMatrix();
+#endif
 }
 

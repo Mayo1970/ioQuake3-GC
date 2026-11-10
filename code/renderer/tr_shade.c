@@ -179,10 +179,14 @@ static void R_DrawElements( int numIndexes, const glIndex_t *indexes ) {
 
 
 	if ( primitives == 2 ) {
+#ifdef HW_DOL
+		GXBE_DrawTess( numIndexes, indexes );
+#else
 		qglDrawElements( GL_TRIANGLES, 
 						numIndexes,
 						GL_INDEX_TYPE,
 						indexes );
+#endif
 		return;
 	}
 
@@ -208,7 +212,13 @@ SURFACE SHADERS
 =============================================================
 */
 
+#ifdef HW_DOL
+/* GX_SetArray needs 32-byte alignment; aligning the struct covers every
+ * sub-array's offset too since they all land on 32-byte multiples. */
+shaderCommands_t	tess __attribute__((aligned(32)));
+#else
 shaderCommands_t	tess;
+#endif
 static qboolean	setArraysOnce;
 
 /*
