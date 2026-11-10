@@ -314,6 +314,22 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #endif
 
+//============================================================== GAMECUBE ===
+
+#ifdef HW_DOL
+
+#define OS_STRING "gamecube"
+#define ID_INLINE inline
+#define PATH_SEP '/'
+
+#define ARCH_STRING "ppc"
+
+#define Q3_BIG_ENDIAN
+
+#define DLL_EXT ".so"
+
+#endif
+
 //================================================================== Q3VM ===
 
 #ifdef Q3_VM
