@@ -69,9 +69,13 @@ static	long				ROQ_UB_tab[256];
 static	long				ROQ_UG_tab[256];
 static	long				ROQ_VG_tab[256];
 static	long				ROQ_VR_tab[256];
+#ifdef HW_DOL
+static	unsigned short		*vq2, *vq4, *vq8;
+#else
 static	unsigned short		vq2[256*16*4];
 static	unsigned short		vq4[256*64*4];
 static	unsigned short		vq8[256*256*4];
+#endif
 
 
 typedef struct {
@@ -127,10 +131,59 @@ typedef struct {
 	long				drawX, drawY;
 } cin_cache;
 
+#ifdef HW_DOL
+static cinematics_t		*cinMem;
+#define cin (*cinMem)
+#else
 static cinematics_t		cin;
+#endif
 static cin_cache		cinTable[MAX_VIDEO_HANDLES];
 static int				currentHandle = -1;
 static int				CL_handle = -1;
+
+#ifdef HW_DOL
+static qboolean CIN_AllocMem( void ) {
+	int		size;
+
+	if ( cinMem ) {
+		return qtrue;
+	}
+	size = sizeof( cinematics_t )
+		+ 256*16*4 * sizeof( *vq2 )
+		+ 256*64*4 * sizeof( *vq4 )
+		+ 256*256*4 * sizeof( *vq8 );
+	cinMem = malloc( size );
+	if ( !cinMem ) {
+		Com_Printf( "CIN: out of memory (%d bytes)\n", size );
+		return qfalse;
+	}
+	vq2 = (unsigned short *)( cinMem + 1 );
+	vq4 = vq2 + 256*16*4;
+	vq8 = vq4 + 256*64*4;
+	return qtrue;
+}
+
+static void CIN_FreeMemIfIdle( void ) {
+	int		i;
+
+	for ( i = 0; i < MAX_VIDEO_HANDLES; i++ ) {
+		if ( cinTable[i].fileName[0] != 0 ) {
+			return;
+		}
+	}
+	for ( i = 0; i < MAX_VIDEO_HANDLES; i++ ) {
+		cinTable[i].buf = NULL;
+		cinTable[i].status = FMV_EOF;
+	}
+	if ( cinMem ) {
+		free( cinMem );
+	}
+	cinMem = NULL;
+	vq2 = NULL;
+	vq4 = NULL;
+	vq8 = NULL;
+}
+#endif
 
 extern int				s_soundtime;		// sample PAIRS
 
@@ -1289,6 +1342,9 @@ static void RoQShutdown( void ) {
 	}
 	cinTable[currentHandle].fileName[0] = 0;
 	currentHandle = -1;
+#ifdef HW_DOL
+	CIN_FreeMemIfIdle();
+#endif
 }
 
 /*
@@ -1333,6 +1389,11 @@ e_status CIN_RunCinematic (int handle)
 	int     thisTime = 0;
 
 	if (handle < 0 || handle>= MAX_VIDEO_HANDLES || cinTable[handle].status == FMV_EOF) return FMV_EOF;
+#ifdef HW_DOL
+	if ( !cinMem ) {
+		return FMV_EOF;
+	}
+#endif
 
 	if (cin.currentHandle != handle) {
 		currentHandle = handle;
@@ -1422,6 +1483,11 @@ int CIN_PlayCinematic( const char *arg, int x, int y, int w, int h, int systemBi
 
 	Com_DPrintf("CIN_PlayCinematic( %s )\n", arg);
 
+#ifdef HW_DOL
+	if ( !CIN_AllocMem() ) {
+		return -1;
+	}
+#endif
 	Com_Memset(&cin, 0, sizeof(cinematics_t) );
 	currentHandle = CIN_HandleForVideo();
 
@@ -1435,6 +1501,9 @@ int CIN_PlayCinematic( const char *arg, int x, int y, int w, int h, int systemBi
 	if (cinTable[currentHandle].ROQSize<=0) {
 		Com_DPrintf("play(%s), ROQSize<=0\n", arg);
 		cinTable[currentHandle].fileName[0] = 0;
+#ifdef HW_DOL
+		CIN_FreeMemIfIdle();
+#endif
 		return -1;
 	}
 

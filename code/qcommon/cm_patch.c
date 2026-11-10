@@ -415,10 +415,18 @@ PATCH COLLIDE GENERATION
 */
 
 static	int				numPlanes;
+#ifdef HW_DOL
+static	patchPlane_t	*planes;
+#else
 static	patchPlane_t	planes[MAX_PATCH_PLANES];
+#endif
 
 static	int				numFacets;
+#ifdef HW_DOL
+static	facet_t			*facets;
+#else
 static	facet_t			facets[MAX_PATCH_PLANES]; //maybe MAX_FACETS ??
+#endif
 
 #define	NORMAL_EPSILON	0.0001
 #define	DIST_EPSILON	0.02
@@ -1200,7 +1208,17 @@ struct patchCollide_s	*CM_GeneratePatchCollide( int width, int height, vec3_t *p
 	c_totalPatchBlocks += ( grid.width - 1 ) * ( grid.height - 1 );
 
 	// generate a bsp tree for the surface
+#ifdef HW_DOL
+	planes = Hunk_AllocateTempMemory( MAX_PATCH_PLANES * sizeof( *planes ) );
+	facets = Hunk_AllocateTempMemory( MAX_PATCH_PLANES * sizeof( *facets ) );
+#endif
 	CM_PatchCollideFromGrid( &grid, pf );
+#ifdef HW_DOL
+	Hunk_FreeTempMemory( facets );
+	Hunk_FreeTempMemory( planes );
+	facets = NULL;
+	planes = NULL;
+#endif
 
 	// expand by one unit for epsilon purposes
 	pf->bounds[0][0] -= 1;

@@ -24,7 +24,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "q_shared.h"
 #include "qcommon.h"
 
+#ifdef HW_DOL
+#define	MAX_CMD_BUFFER  16384
+#else
 #define	MAX_CMD_BUFFER  128*1024
+#endif
 #define	MAX_CMD_LINE	1024
 
 typedef struct {
