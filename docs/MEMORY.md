@@ -151,6 +151,9 @@ Binary and BSS targets include the native modules (QGC-10) and the GX renderer. 
 | QGC-12 | before (main 6c81c79) | 1485686 | 407836 | 29105728 | 30999250 |
 | QGC-12 | after: BSS diet | 1486238 | 407924 | 6832096 | 8726258 |
 | QGC-12 | delta | +552 | +88 | -22273632 | -22272992 |
+| QGC-13 | before (main 590cea7) | 1486238 | 407924 | 6832096 | 8726258 |
+| QGC-13 | after: hunk clamp, sound megs, CM lump load | 1488350 | 408400 | 6832096 | 8728846 |
+| QGC-13 | delta | +2112 | +476 | 0 | +2588 |
 
 `.text` 1455680 (-4960) and `.rodata` 152928 (-936) from `size -A`.
 
@@ -214,3 +217,56 @@ Bytes from release `powerpc-eabi-nm -S`; `cin` disappears as a symbol once it mo
 | 19 | `cg_markPolys` | 73728 | 72.0 |
 | 20 | `con` | 65608 | 64.1 |
 
+
+## 9. Hunk and zone sizing (QGC-13)
+
+### Defaults
+
+| Setting | Upstream | GameCube | Why |
+|---|---:|---:|---|
+| `com_hunkMegs` default | 128 | 8 | Hunk target 7.5 MB (section 5), rounded up. The clamp below cuts it to what fits. |
+| `com_hunkMegs` minimum | 56 | 6 | Highest measured peak is 4.66 MB (q3dm6). |
+| `com_zoneMegs` default (also the minimum) | 24 | 3 | Highest measured zone peak is 2.53 MB (q3dm6). |
+| `com_soundMegs` default | 8 | 1 | On `HW_DOL` the cvar counts megabytes (509 chunks of 2060 bytes). Upstream counts units of 1536 chunks, about 3 MB each. |
+
+### Hunk clamp
+
+`Com_InitHunkMemory` on `HW_DOL` keeps `GC_HUNK_RESERVE` (4980736 bytes: textures 3.00 + sound 1.50 + GX FIFO 0.25 MB) and `GC_HUNK_SLACK` (65536 bytes) of the free Arena1 out of the hunk.
+If `com_hunkMegs` asks for more, the hunk gets the largest whole MB that fits and the console prints `com_hunkMegs <n> does not fit in free memory, allocating <m> megs.`
+If even `MIN_COMHUNKMEGS` does not fit, `Com_Error( ERR_FATAL )`. The cvar value does not change.
+
+Stock 24 MB check (`DEBUG=1`, no memory override, `com_hunkMegs 24`, q3dm1, 4 bots): `com_hunkMegs 24 does not fit in free memory, allocating 6 megs.`
+Boot Arena1 15704064, after `Com_Init` 5398528, after the map load 5251072 bytes. The map loads and the bots play. The default 8 also falls back to 6 in stock memory.
+
+### Hunk waste cut: collision map loads lump by lump
+
+Upstream `CM_LoadMap` holds the whole BSP in hunk temp memory while collision loads. That was the hunk peak on every map.
+On `HW_DOL` it reads one collision lump at a time (surfaces and drawverts together, for patches) and frees it after use.
+The map checksum comes from a streamed MD4 pass (`Com_FileChecksum`), bit-equal to `Com_BlockChecksum` on the whole file: botlib accepts all four `.aas` files.
+The lightmap, lightgrid, fog and index lumps are not read. Load time of q3dm6 and q3dm1 (server init to "entered the game") is within 1 s of the old path in Dolphin.
+
+### Peaks
+
+`DEBUG=1 GC_MEM1_MB=64`, Dolphin MEM1 override 64 MB, null renderer, null sound, `g_gametype 0`, 4 bots (`addbot sarge/anarki/visor/doom 2`), timelimit 3.
+Peaks come from `meminfo` (`GC peak:` lines, debug builds only). The hunk peak resets on each `Hunk_Clear`; zone peaks never reset.
+
+| Map | BSP bytes | Hunk peak before | Hunk peak after | Hunk in use after load | Zone peak | Small zone peak |
+|---|---:|---:|---:|---:|---:|---:|
+| q3dm1 | 1906708 | 3823504 (3.65 MB) | 3226464 (3.08 MB) | 3226464 | 2401748 (2.29 MB) | 58912 |
+| q3dm6 | 4408212 | 7653456 (7.30 MB) | 4882576 (4.66 MB) | 4847744 | 2649268 (2.53 MB) | 60952 |
+| q3dm17 | 2286376 | 3698500 (3.53 MB) | 2816640 (2.69 MB) | 2816640 | 2543952 (2.43 MB) | 58712 |
+| q3tourney6 | 2040060 | 3505112 (3.34 MB) | 2781184 (2.65 MB) | 2781184 | 2457600 (2.34 MB) | 59104 |
+
+"Before" is part 1 of QGC-13 (whole-BSP load); "after" is the lump load. q3dm1, q3dm6 and q3dm17 reach "Timelimit hit." with no error.
+q3tourney6: the log stops about 30 s after the map load and the match does not reach the time limit. `main` (590cea7) does the same, so this is not a QGC-13 change; it is open for a later task.
+
+### Largest hunk allocations on q3dm6 (after the cut)
+
+| Bytes | Owner |
+|---:|---|
+| 1188264 + 2088 | hunk temp: drawverts + surfaces lumps during `CMod_LoadPatches` (freed) |
+| 856768 | `CMod_LoadVisibility` (PVS) |
+| 696336 | hunk temp per patch build: `planes` + `facets` (QGC-12, freed) |
+| 426016 | `svs.snapshotEntities` (8 clients x 4 x 64 entities) |
+| 282656 | botlib console message heap (`max_messages` 1024) |
+| about 1.5 MB | botlib AAS lumps |

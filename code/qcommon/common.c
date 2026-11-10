@@ -31,6 +31,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <winsock.h>
 #endif
 
+#ifdef HW_DOL
+#include <ogc/system.h>
+#endif
+
 int demo_protocols[] =
 { 67, 66, 0 };
 
@@ -38,10 +42,14 @@ int demo_protocols[] =
 
 #define MIN_DEDICATED_COMHUNKMEGS 1
 #ifdef HW_DOL
-/* Provisional values; QGC-13 sets the final ones. */
-#define MIN_COMHUNKMEGS		8
-#define DEF_COMHUNKMEGS 	24
-#define DEF_COMZONEMEGS		12
+/* QGC-13 sizes: hunk peak 4.9 MB, zone peak 2.65 MB with 4 bots, null renderer (docs/MEMORY.md). */
+#define MIN_COMHUNKMEGS		6
+#define DEF_COMHUNKMEGS 	8
+#define DEF_COMZONEMEGS		3
+/* Free MEM1 kept out of the hunk: textures 3.00 + sound 1.50 + GX FIFO 0.25 MB (docs/MEMORY.md, section 5). */
+#define GC_HUNK_RESERVE		(4980736)
+/* malloc header and the hunk's 31-byte alignment pad. */
+#define GC_HUNK_SLACK		(65536)
 #else
 #define MIN_COMHUNKMEGS		56
 #define DEF_COMHUNKMEGS 	128
@@ -49,6 +57,11 @@ int demo_protocols[] =
 #endif
 #define DEF_COMHUNKMEGS_S	XSTRING(DEF_COMHUNKMEGS)
 #define DEF_COMZONEMEGS_S	XSTRING(DEF_COMZONEMEGS)
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+static int gc_hunkPeak, gc_hunkPeakLow, gc_hunkPeakHigh;
+static int gc_zonePeak, gc_smallZonePeak;
+#endif
 
 int		com_argc;
 char	*com_argv[MAX_NUM_ARGVS+1];
@@ -1013,6 +1026,14 @@ void *Z_TagMalloc( int size, int tag ) {
 	
 	zone->rover = base->next;	// next allocation will start looking here
 	zone->used += base->size;	//
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	if ( zone == mainzone && zone->used > gc_zonePeak ) {
+		gc_zonePeak = zone->used;
+	}
+	if ( zone == smallzone && zone->used > gc_smallZonePeak ) {
+		gc_smallZonePeak = zone->used;
+	}
+#endif
 	
 	base->id = ZONEID;
 
@@ -1261,6 +1282,16 @@ static	hunkblock_t *hunkblocks;
 static	hunkUsed_t	hunk_low, hunk_high;
 static	hunkUsed_t	*hunk_permanent, *hunk_temp;
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+static void GC_UpdateHunkPeak( void ) {
+	if ( hunk_low.temp + hunk_high.temp > gc_hunkPeak ) {
+		gc_hunkPeak = hunk_low.temp + hunk_high.temp;
+		gc_hunkPeakLow = hunk_low.temp;
+		gc_hunkPeakHigh = hunk_high.temp;
+	}
+}
+#endif
+
 static	byte	*s_hunkData = NULL;
 static	int		s_hunkTotal;
 
@@ -1358,6 +1389,10 @@ void Com_Meminfo_f( void ) {
 	Com_Printf( "        %8i bytes in dynamic renderer\n", rendererBytes );
 	Com_Printf( "        %8i bytes in dynamic other\n", zoneBytes - ( botlibBytes + rendererBytes ) );
 	Com_Printf( "        %8i bytes in small Zone memory\n", smallZoneBytes );
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	Com_Printf( "GC peak: hunk %i (low %i, high %i) of %i\n", gc_hunkPeak, gc_hunkPeakLow, gc_hunkPeakHigh, s_hunkTotal );
+	Com_Printf( "GC peak: zone %i of %i, small zone %i of %i\n", gc_zonePeak, s_zoneTotal, gc_smallZonePeak, s_smallZoneTotal );
+#endif
 }
 
 /*
@@ -1567,6 +1602,21 @@ void Com_InitHunkMemory( void ) {
 		s_hunkTotal = cv->integer * 1024 * 1024;
 	}
 
+#ifdef HW_DOL
+	{
+		int freeBytes = (int)SYS_GetArena1Size() - GC_HUNK_RESERVE - GC_HUNK_SLACK;
+		int fitMegs = freeBytes > 0 ? freeBytes / ( 1024 * 1024 ) : 0;
+
+		if ( s_hunkTotal > fitMegs * 1024 * 1024 ) {
+			if ( fitMegs < nMinAlloc ) {
+				Com_Error( ERR_FATAL, "com_hunkMegs: only %i megs fit in free memory, minimum is %i", fitMegs, nMinAlloc );
+			}
+			Com_Printf( "com_hunkMegs %i does not fit in free memory, allocating %i megs.\n", s_hunkTotal / ( 1024 * 1024 ), fitMegs );
+			s_hunkTotal = fitMegs * 1024 * 1024;
+		}
+	}
+#endif
+
 	s_hunkData = calloc( s_hunkTotal + 31, 1 );
 	if ( !s_hunkData ) {
 		Com_Error( ERR_FATAL, "Hunk data failed to allocate %i megs", s_hunkTotal / (1024*1024) );
@@ -1665,6 +1715,12 @@ void Hunk_Clear( void ) {
 	hunk_high.permanent = 0;
 	hunk_high.temp = 0;
 	hunk_high.tempHighwater = 0;
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	gc_hunkPeak = 0;
+	gc_hunkPeakLow = 0;
+	gc_hunkPeakHigh = 0;
+#endif
 
 	hunk_permanent = &hunk_low;
 	hunk_temp = &hunk_high;
@@ -1768,6 +1824,9 @@ void *Hunk_Alloc( int size, ha_pref preference ) {
 		buf = ((byte *) buf) + sizeof(hunkblock_t);
 	}
 #endif
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	GC_UpdateHunkPeak();
+#endif
 	return buf;
 }
 
@@ -1820,6 +1879,9 @@ void *Hunk_AllocateTempMemory( int size ) {
 	hdr->size = size;
 
 	// don't bother clearing, because we are going to load a file over it
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	GC_UpdateHunkPeak();
+#endif
 	return buf;
 }
 

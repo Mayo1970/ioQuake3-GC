@@ -174,6 +174,23 @@ static void mdfour_update(struct mdfour *md, byte *in, int n)
 	mdfour_tail(in, n);
 }
 
+#ifdef HW_DOL
+/* mdfour_update without the tail: callers pass a multiple of 64 and finish with mdfour_update. */
+static void mdfour_blocks(struct mdfour *md, byte *in, int n)
+{
+	uint32_t M[16];
+
+	m = md;
+
+	while (n >= 64) {
+		copy64(M, in);
+		mdfour64(M);
+		in += 64;
+		n -= 64;
+		m->totalN += 64;
+	}
+}
+#endif
 
 static void mdfour_result(struct mdfour *md, byte *out)
 {
@@ -206,3 +223,34 @@ unsigned Com_BlockChecksum (const void *buffer, int length)
 
 	return val;
 }
+
+#ifdef HW_DOL
+unsigned Com_FileChecksum( fileHandle_t f, int length ) {
+	int				digest[4];
+	byte			*chunk;
+	struct mdfour	md;
+
+	chunk = Hunk_AllocateTempMemory( 16384 );
+	mdfour_begin( &md );
+
+	while ( length > 16384 ) {
+		if ( FS_Read( chunk, 16384, f ) != 16384 ) {
+			Com_Error( ERR_DROP, "Com_FileChecksum: short read" );
+		}
+		mdfour_blocks( &md, chunk, 16384 );
+		length -= 16384;
+	}
+
+	if ( length > 0 ) {
+		if ( FS_Read( chunk, length, f ) != length ) {
+			Com_Error( ERR_DROP, "Com_FileChecksum: short read" );
+		}
+	}
+	mdfour_update( &md, chunk, length );
+
+	mdfour_result( &md, (byte *)digest );
+	Hunk_FreeTempMemory( chunk );
+
+	return digest[0] ^ digest[1] ^ digest[2] ^ digest[3];
+}
+#endif

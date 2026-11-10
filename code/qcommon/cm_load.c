@@ -559,6 +559,49 @@ unsigned CM_Checksum(dheader_t *header) {
 	return LittleLong(Com_BlockChecksum(checksums, 11 * 4));
 }
 
+#ifdef HW_DOL
+/* Seek forward when possible: a backward seek in a pk3 inflates the file again from its start. */
+static void CM_SeekTo( fileHandle_t f, int *pos, int ofs ) {
+	if ( ofs == *pos ) {
+		return;
+	}
+	if ( ofs > *pos ) {
+		FS_Seek( f, ofs - *pos, FS_SEEK_CUR );
+	} else {
+		FS_Seek( f, ofs, FS_SEEK_SET );
+	}
+	*pos = ofs;
+}
+
+static void CM_ReadLumpData( fileHandle_t f, int *pos, const lump_t *l, byte *dest, int length ) {
+	if ( l->fileofs < 0 || l->filelen < 0 || l->fileofs + l->filelen > length ) {
+		Com_Error( ERR_DROP, "CM_LoadMap: bad lump offset" );
+	}
+	if ( l->filelen == 0 ) {
+		return;
+	}
+	CM_SeekTo( f, pos, l->fileofs );
+	if ( FS_Read( dest, l->filelen, f ) != l->filelen ) {
+		Com_Error( ERR_DROP, "CM_LoadMap: short read" );
+	}
+	*pos += l->filelen;
+}
+
+static void CM_LoadOneLump( fileHandle_t f, int *pos, const lump_t *l, int length, void (*load)( lump_t *l ) ) {
+	lump_t	local;
+	byte	*data;
+
+	data = Hunk_AllocateTempMemory( l->filelen );
+	CM_ReadLumpData( f, pos, l, data, length );
+	local.fileofs = 0;
+	local.filelen = l->filelen;
+	cmod_base = data;
+	load( &local );
+	Hunk_FreeTempMemory( data );
+	cmod_base = NULL;
+}
+#endif
+
 /*
 ==================
 CM_LoadMap
@@ -567,10 +610,18 @@ Loads in the map and all submodels
 ==================
 */
 void CM_LoadMap( const char *name, qboolean clientload, int *checksum ) {
+#ifndef HW_DOL
 	union {
 		int				*i;
 		void			*v;
 	} buf;
+#endif
+#ifdef HW_DOL
+	fileHandle_t	f;
+	int				pos;
+	lump_t			surfs, verts;
+	byte			*data;
+#endif
 	int				i;
 	dheader_t		header;
 	int				length;
@@ -608,6 +659,64 @@ void CM_LoadMap( const char *name, qboolean clientload, int *checksum ) {
 	//
 	// load the file
 	//
+#ifdef HW_DOL
+	length = FS_FOpenFileRead( name, &f, qtrue );
+	if ( !f || length <= 0 ) {
+		if ( f ) {
+			FS_FCloseFile( f );
+		}
+		Com_Error( ERR_DROP, "Couldn't load %s", name );
+	}
+
+	last_checksum = LittleLong( Com_FileChecksum( f, length ) );
+	*checksum = last_checksum;
+
+	FS_Seek( f, 0, FS_SEEK_SET );
+	pos = 0;
+
+	if ( length < (int)sizeof( header ) ) {
+		FS_FCloseFile( f );
+		Com_Error( ERR_DROP, "CM_LoadMap: %s is too short", name );
+	}
+	FS_Read( &header, sizeof( header ), f );
+	pos = sizeof( header );
+
+	for (i=0 ; i<sizeof(dheader_t)/4 ; i++) {
+		((int *)&header)[i] = LittleLong ( ((int *)&header)[i]);
+	}
+
+	if ( header.version != BSP_VERSION ) {
+		FS_FCloseFile( f );
+		Com_Error (ERR_DROP, "CM_LoadMap: %s has wrong version number (%i should be %i)"
+		, name, header.version, BSP_VERSION );
+	}
+
+	// load into heap
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_SHADERS], length, CMod_LoadShaders );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_LEAFS], length, CMod_LoadLeafs );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_LEAFBRUSHES], length, CMod_LoadLeafBrushes );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_LEAFSURFACES], length, CMod_LoadLeafSurfaces );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_PLANES], length, CMod_LoadPlanes );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_BRUSHSIDES], length, CMod_LoadBrushSides );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_BRUSHES], length, CMod_LoadBrushes );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_MODELS], length, CMod_LoadSubmodels );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_NODES], length, CMod_LoadNodes );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_ENTITIES], length, CMod_LoadEntityString );
+	CM_LoadOneLump( f, &pos, &header.lumps[LUMP_VISIBILITY], length, CMod_LoadVisibility );
+
+	data = Hunk_AllocateTempMemory( header.lumps[LUMP_SURFACES].filelen + header.lumps[LUMP_DRAWVERTS].filelen );
+	CM_ReadLumpData( f, &pos, &header.lumps[LUMP_SURFACES], data, length );
+	CM_ReadLumpData( f, &pos, &header.lumps[LUMP_DRAWVERTS], data + header.lumps[LUMP_SURFACES].filelen, length );
+	surfs.fileofs = 0;
+	surfs.filelen = header.lumps[LUMP_SURFACES].filelen;
+	verts.fileofs = surfs.filelen;
+	verts.filelen = header.lumps[LUMP_DRAWVERTS].filelen;
+	cmod_base = data;
+	CMod_LoadPatches( &surfs, &verts );
+	Hunk_FreeTempMemory( data );
+	cmod_base = NULL;
+	FS_FCloseFile( f );
+#else
 #ifndef BSPC
 	length = FS_ReadFile( name, &buf.v );
 #else
@@ -649,6 +758,7 @@ void CM_LoadMap( const char *name, qboolean clientload, int *checksum ) {
 
 	// we are NOT freeing the file, because it is cached for the ref
 	FS_FreeFile (buf.v);
+#endif
 
 	CM_InitBoxHull ();
 
