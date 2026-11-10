@@ -130,6 +130,7 @@ void entry(init_fn *init, main_fn *main, close_fn *close)
 	/* The IPL does not zero the apploader BSS. */
 	while (p < __bss_end)
 		*p++ = 0;
+	dcache_flush(__bss_start, __bss_end - __bss_start);
 
 	*init = apploader_init;
 	*main = apploader_main;
