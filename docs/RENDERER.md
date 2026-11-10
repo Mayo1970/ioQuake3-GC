@@ -84,7 +84,7 @@ Texture data is never cached between uploads; the GP sees the flushed buffer thr
 
 ## 4. Video modes and frame loop (QGC-16)
 
-One video mode serves the whole program. `GC_InitConsole` calls `VIDEO_GetPreferredMode( NULL )` once and copies the result into `gc_mode`; `GC_GetVideoMode` returns that copy. If the call returns `NULL` (an unknown TV mode such as `VI_DEBUG`), the fallback is `TVNtsc480IntDf`. Every size in the GameCube video code comes from the `GXRModeObj` fields; there is no hardcoded 640 or 480.
+One video mode serves the whole program. `GC_InitConsole` calls `VIDEO_GetPreferredMode( NULL )` once and copies the result into `gc_mode`; `GC_GetVideoMode` returns that copy. If the call returns `NULL` (an unknown TV mode such as `VI_DEBUG`), the fallback is `TVNtsc480IntDf`. Every video size in the GameCube code comes from the `GXRModeObj` fields. The only fixed number is `GC_GX_LOGICAL_HEIGHT` (480): the engine's logical 2D height, which `tr_gx.c` maps onto `efbHeight`.
 
 The GX renderer reuses the console XFB as XFB 0 (`GC_GetConsoleXFB`) and allocates only one more. After the renderer starts, console text is hidden: `Sys_Print` stops writing to the XFB, because XFB 0 now holds a GX frame. `Sys_Error` aborts the GX frame, restores the console XFB and shows the message on screen even after the renderer has started.
 
