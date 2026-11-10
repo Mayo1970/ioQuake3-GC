@@ -122,18 +122,19 @@ Arena1 values depend on the 64 MB override; the hunk and zone values do not.
 
 | Line | Measured now (MB) | Target (MB) | Notes |
 |---|---:|---|---|
-| binary (text + data + rodata) | 1.11 | TBD | Berkeley text + data: 914326 + 254652 = 1168978 bytes (includes `.rodata` and `.eh_frame`) |
-| BSS (incl. the 512 KB main stack) | 24.52 | TBD | Berkeley bss 25711264 bytes (`.bss` + `.sbss`); `s_gcMainStack` is 524288 bytes |
-| XFB | 0.59 | TBD | 1 framebuffer x 640 x 480 x 2 bytes (NTSC); PAL height 576 gives 0.70 MB |
-| GX FIFO | 0.00 | TBD | no GX yet |
-| hunk | 24.00 | TBD | `com_hunkMegs` default 24; 15.05 MB used on q3dm1 with QVMs (section 4) |
-| zone | 12.00 | TBD | `com_zoneMegs` default 12; 1.58 MB used on q3dm1 (section 4) |
-| sound | 0.00 | TBD | `com_soundMegs` default is 8 MB; the null sound driver allocates nothing |
-| textures | 0.00 | TBD | null renderer |
-| other (libogc, malloc, OS low memory) | n/a | TBD | not measured; libogc BSS is inside the BSS line |
-| total | 62.22 | TBD | sum of measured column: 65243378 bytes |
+| binary (text + data + rodata) | 1.11 | 3.00 | Berkeley text + data: 914326 + 254652 = 1168978 bytes (includes `.rodata` and `.eh_frame`) |
+| BSS (incl. the 512 KB main stack) | 24.52 | 3.00 | Berkeley bss 25711264 bytes (`.bss` + `.sbss`); `s_gcMainStack` is 524288 bytes |
+| XFB | 0.59 | 1.20 | 1 framebuffer x 640 x 480 x 2 bytes (NTSC); PAL height 576 gives 0.70 MB |
+| GX FIFO | 0.00 | 0.25 | no GX yet |
+| hunk | 24.00 | 7.50 | `com_hunkMegs` default 24; 15.05 MB used on q3dm1 with QVMs (section 4) |
+| zone | 12.00 | 2.50 | `com_zoneMegs` default 12; 1.58 MB used on q3dm1 (section 4) |
+| sound | 0.00 | 1.50 | `com_soundMegs` default is 8 MB; the null sound driver allocates nothing |
+| textures | 0.00 | 3.00 | null renderer |
+| other (libogc, malloc, OS low memory) | n/a | 1.00 | not measured; libogc BSS is inside the BSS line |
+| total | 62.22 | 22.95 | sum of measured column: 65243378 bytes |
 
-24 MB = 25165824 bytes.
+24 MB = 25165824 bytes. Targets set by Matt on 2026-11-10: sum 22.95 MB, 1.05 MB slack.
+Binary and BSS targets include the native modules (QGC-10) and the GX renderer. XFB target is 2 buffers. Sound target is the MEM1 part; the rest goes to ARAM.
 
 ## 6. Notes
 
