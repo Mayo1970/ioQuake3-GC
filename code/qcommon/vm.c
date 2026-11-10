@@ -608,6 +608,28 @@ vm_t *VM_Create( const char *module, intptr_t (*systemCalls)(intptr_t *),
 
 	Q_strncpyz(vm->name, module, sizeof(vm->name));
 
+#ifdef HW_DOL
+	vm->dllHandle = Sys_LoadGameDll(module, &vm->entryPoint, VM_DllSyscall);
+	if (!vm->dllHandle)
+	{
+		Com_Printf("VM_Create: no native %s module\n", module);
+		Com_Memset(vm, 0, sizeof(*vm));
+		return NULL;
+	}
+	vm->systemCall = systemCalls;
+	{
+		/* Touch vm/<module>.qvm so the pak reference flags match a QVM load. */
+		char qvmName[MAX_OSPATH];
+		fileHandle_t f = 0;
+
+		Com_sprintf(qvmName, sizeof(qvmName), "vm/%s.qvm", module);
+		FS_FOpenFileRead(qvmName, &f, qfalse);
+		if (f)
+			FS_FCloseFile(f);
+	}
+	return vm;
+#endif
+
 	do
 	{
 		retval = FS_FindVM(&startSearch, filename, sizeof(filename), module, (interpret == VMI_NATIVE));

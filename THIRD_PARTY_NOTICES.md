@@ -5,7 +5,8 @@ keeps its own licence. This file ships beside every `.dol` in a release.
 
 QGC-5 vendored the engine baseline into `code/` from old-mac-quake3 commit
 `2f187c09c8a816bb62d5b7ccdbee24c65a1581fb`, unchanged. QGC-8 added `code/ui/ui_public.h` from the same commit,
-unchanged.
+unchanged. QGC-10 added `code/ui/ui_syscalls.c` from the same commit, unchanged, and moved `menudef.h` back to the
+baseline path `ui/menudef.h`.
 
 ## Summary
 

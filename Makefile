@@ -51,10 +51,44 @@ CLIENT_OBJ	:=	$(addprefix code/client/,cl_avi.o cl_cgame.o cl_cin.o \
 NULL_OBJ	:=	code/null/null_input.o
 
 SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o sys_gc.o gc_dvd.o \
-			gc_null_renderer.o gc_null_snddma.o gc_net_null.o)
+			gc_null_renderer.o gc_null_snddma.o gc_net_null.o gc_modules.o)
 
 ZLIB_CFILES	:=	$(notdir $(wildcard $(CURDIR)/code/zlib/*.c))
 ZLIB_OBJ	:=	$(addprefix code/zlib/,$(ZLIB_CFILES:.c=.o))
+
+MODULE_DIR	:=	modules
+MODULE_OBJS	:=	$(addprefix $(MODULE_DIR)/,$(addsuffix .o,qagame cgame ui))
+
+MOD_SHARED	:=	code/qcommon/q_math.c code/qcommon/q_shared.c
+MOD_BG		:=	code/game/bg_misc.c code/game/bg_pmove.c \
+			code/game/bg_slidemove.c code/game/bg_lib.c
+
+qagame_SRCS	:=	$(addprefix code/game/,g_main.c ai_chat.c ai_cmd.c \
+			ai_dmnet.c ai_dmq3.c ai_main.c ai_team.c ai_vcmd.c g_active.c \
+			g_arenas.c g_bot.c g_client.c g_cmds.c g_combat.c g_items.c \
+			g_mem.c g_misc.c g_missile.c g_mover.c g_session.c g_spawn.c \
+			g_svcmds.c g_target.c g_team.c g_trigger.c g_utils.c g_weapon.c \
+			g_syscalls.c) $(MOD_BG) $(MOD_SHARED)
+
+cgame_SRCS	:=	$(addprefix code/cgame/,cg_main.c cg_consolecmds.c cg_draw.c \
+			cg_drawtools.c cg_effects.c cg_ents.c cg_event.c cg_info.c \
+			cg_localents.c cg_marks.c cg_particles.c cg_players.c \
+			cg_playerstate.c cg_predict.c cg_scoreboard.c cg_servercmds.c \
+			cg_snapshot.c cg_view.c cg_weapons.c cg_syscalls.c) \
+			$(MOD_BG) $(MOD_SHARED)
+
+ui_SRCS		:=	$(addprefix code/q3_ui/,ui_main.c ui_addbots.c ui_atoms.c \
+			ui_cdkey.c ui_cinematics.c ui_confirm.c ui_connect.c \
+			ui_controls2.c ui_credits.c ui_demo2.c ui_display.c \
+			ui_gameinfo.c ui_ingame.c ui_loadconfig.c ui_menu.c ui_mfield.c \
+			ui_mods.c ui_network.c ui_options.c ui_playermodel.c \
+			ui_players.c ui_playersettings.c ui_preferences.c ui_qmenu.c \
+			ui_removebots.c ui_saveconfig.c ui_serverinfo.c ui_servers2.c \
+			ui_setup.c ui_sound.c ui_sparena.c ui_specifyserver.c \
+			ui_splevel.c ui_sppostgame.c ui_spskill.c ui_startserver.c \
+			ui_team.c ui_teamorders.c ui_video.c) code/game/bg_misc.c \
+			code/game/bg_lib.c $(addprefix code/ui/,ui_syscalls.c) \
+			$(MOD_SHARED)
 
 CFLAGS		=	-O2 -Wall $(MACHDEP) -G 0 -msdata=none -DHW_DOL \
 			-DNO_VM_COMPILED -DUSE_LOCAL_HEADERS -DGC_DISC_ID=\"$(DISC_ID)\" \
@@ -85,7 +119,8 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 export LD	:=	$(CC)
 
 export OFILES	:=	$(QCOMMON_OBJ) $(SERVER_OBJ) $(BOTLIB_OBJ) \
-			$(CLIENT_OBJ) $(NULL_OBJ) $(SYS_OBJ) $(ZLIB_OBJ)
+			$(CLIENT_OBJ) $(NULL_OBJ) $(SYS_OBJ) $(ZLIB_OBJ) \
+			$(MODULE_OBJS)
 
 export BOTLIB_OBJ
 export ZLIB_OBJ
@@ -128,6 +163,35 @@ all: $(OUTPUT).dol
 $(BOTLIB_OBJ): CFLAGS += -DBOTLIB
 code/qcommon/ioapi.o: CFLAGS += -DUSE_INTERNAL_ZLIB
 $(ZLIB_OBJ): CFLAGS += -DUSE_INTERNAL_ZLIB -I$(REPO_ROOT)/code/zlib
+
+# Each module is partially linked, then all globals except its entry points and
+# data/bss markers are hidden so it cannot resolve into the engine or another module.
+define GC_MODULE_RULES
+$(1)_OBJS := $$(patsubst %.c,$$(MODULE_DIR)/$(1)/%.o,$$($(1)_SRCS))
+
+$$(MODULE_DIR)/$(1)/%.o: %.c
+	@mkdir -p $$(dir $$@)
+	@echo "CC [$(1)] $$<"
+	@$$(CC) -MMD -MP -MF $(DEPSDIR)/$$(dir $$@)$$(notdir $$*).d $(CPPFLAGS) $$(CFLAGS) $(3) -fno-common -D$(2) \
+		-DvmMain=vmMain_$(1) -DdllEntry=dllEntry_$(1) -c $$< -o $$@ $(ERROR_FILTER)
+
+$$(MODULE_DIR)/$(1).o: $$($(1)_OBJS) $(REPO_ROOT)/code/sys/gc_module.ld
+	@echo "MODULE $$@"
+	@$$(PREFIX)ld -r -T $(REPO_ROOT)/code/sys/gc_module.ld -o $$@.r $$($(1)_OBJS)
+	@$$(OBJCOPY) -G vmMain_$(1) -G dllEntry_$(1) -G gcmod_data_start -G gcmod_data_end \
+		-G gcmod_bss_start -G gcmod_bss_end $$@.r $$@.g
+	@$$(OBJCOPY) --redefine-sym gcmod_data_start=gcmod_$(1)_data_start \
+		--redefine-sym gcmod_data_end=gcmod_$(1)_data_end \
+		--redefine-sym gcmod_bss_start=gcmod_$(1)_bss_start \
+		--redefine-sym gcmod_bss_end=gcmod_$(1)_bss_end $$@.g $$@
+	@rm -f $$@.r $$@.g
+
+-include $$($(1)_OBJS:.o=.d)
+endef
+
+$(eval $(call GC_MODULE_RULES,qagame,QAGAME,))
+$(eval $(call GC_MODULE_RULES,cgame,CGAME,))
+$(eval $(call GC_MODULE_RULES,ui,UI,-I$(REPO_ROOT)/code/q3_ui))
 
 $(OUTPUT).dol: $(OUTPUT).elf
 $(OUTPUT).elf: $(OFILES)
