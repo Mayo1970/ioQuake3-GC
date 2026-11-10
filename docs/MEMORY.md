@@ -292,3 +292,27 @@ Result: the match runs to "Timelimit hit." (5 minutes of game time, about 5 min 
 
 Zone in use grows from 1936236 bytes after the load to 2068668 bytes at the time limit; it stays under the load peak.
 One XFB is already inside the measured use: `GC_InitConsole` (`sys_gc.c`) allocates it before the boot line. The reserve does not hold the second XFB of the section 5 target (0.59 MB NTSC).
+
+## 11. GX renderer linked (QGC-15)
+
+The `.dol` links the real renderer and the GX backend instead of the null renderer.
+
+| Release `.elf` | text | data | bss |
+|---|---:|---:|---:|
+| `main` before QGC-15 | 1488350 | 408400 | 6832096 |
+| QGC-15 | 1917280 | 490084 | 8222592 |
+
+New static table of 64 KB or more: `s_gx_texobjs` (65536 bytes). Runtime: vertex ring 256 KB, GX FIFO 256 KB, 2 XFBs, one buffer per texture.
+
+Stock 24 MB (`DEBUG=1`, no override): boot Arena1 is 13803520 bytes (main: 15704064). Boot stops with `com_hunkMegs: only 4 megs fit in free memory, minimum is 6`.
+64 MB override, `DEBUG=1 GC_MEM1_MB=64`: with the default hunk (8 MB) the q3dm1 load fails (`Hunk_AllocateTempMemory: failed on 1906720`).
+With `com_hunkMegs 24`, q3dm1 with null sound runs 300 s with no error.
+
+| Line (64 MB override, `com_hunkMegs 24`) | Bytes |
+|---|---:|
+| Arena1 after `Com_Init` | 23633920 |
+| Arena1 after the map load | 19226624 |
+| hunk peak (low 5948608, high 5928584) | 11877192 |
+| zone peak | 3034580 of 3145728 |
+
+The stock fit returns with the texture budget work (QGC-17). Matt's decision, 2026-11-10.
