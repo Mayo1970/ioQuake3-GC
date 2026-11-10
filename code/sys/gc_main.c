@@ -5,6 +5,10 @@
 #include "sys_local.h"
 #include "sys_gc.h"
 
+#ifdef GC_DEBUG
+#include <ogc/system.h>
+#endif
+
 /* libogc's 128 KB main stack overflows in map load; 512 KB as in the Wii port. */
 static unsigned char s_gcMainStack[512 * 1024] __attribute__((aligned(8)));
 void *__ppc_main_sp __attribute__((section(".sdata"))) = &s_gcMainStack[sizeof(s_gcMainStack)];
@@ -29,8 +33,16 @@ int main(int argc, char **argv)
 		Q_strcat(commandLine, sizeof(commandLine), " ");
 	}
 
+#ifdef GC_DEBUG
+	SYS_Report("GC mem: boot arena1 %u bytes\n", SYS_GetArena1Size());
+#endif
+
 	Com_Init(commandLine);
 	NET_Init();
+
+#ifdef GC_DEBUG
+	Com_Printf("GC mem: after Com_Init arena1 %u bytes\n", SYS_GetArena1Size());
+#endif
 
 	for (;;) {
 		IN_Frame();

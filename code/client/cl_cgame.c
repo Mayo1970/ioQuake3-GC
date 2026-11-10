@@ -29,6 +29,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "libmumblelink.h"
 #endif
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+#include <ogc/system.h>
+#endif
+
 extern	botlib_export_t	*botlib_export;
 
 extern qboolean loadCamera(const char *name);
@@ -776,6 +780,11 @@ void CL_InitCGame( void ) {
 
 	// clear anything that got printed
 	Con_ClearNotify ();
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	Com_Printf("GC mem: after map load arena1 %u bytes\n", SYS_GetArena1Size());
+	Cmd_ExecuteString("meminfo");
+#endif
 }
 
 
