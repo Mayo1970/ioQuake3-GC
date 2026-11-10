@@ -1798,6 +1798,13 @@ void RE_LoadWorldMap( const char *name ) {
 		void *v;
 	} buffer;
 	byte		*startMarker;
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	int			hunkStart;
+#endif
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	hunkStart = Hunk_MemoryRemaining();
+#endif
 
 	if ( tr.worldMapLoaded ) {
 		ri.Error( ERR_DROP, "ERROR: attempted to redundantly load world map" );
@@ -1865,5 +1872,9 @@ void RE_LoadWorldMap( const char *name ) {
 	tr.world = &s_worldData;
 
     ri.FS_FreeFile( buffer.v );
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	ri.Printf( PRINT_ALL, "GC rhunk: world %s %i\n", name, hunkStart - Hunk_MemoryRemaining() );
+#endif
 }
 

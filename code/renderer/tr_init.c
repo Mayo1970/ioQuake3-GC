@@ -1033,6 +1033,12 @@ void GfxInfo_f( void )
 R_Register
 ===============
 */
+#if defined(HW_DOL) && defined(GC_DEBUG)
+static void GC_TexMem_f( void ) {
+	GXBE_TexHeapReport( "now" );
+}
+#endif
+
 void R_Register( void ) 
 {
 	#ifdef USE_RENDERER_DLOPEN
@@ -1180,6 +1186,9 @@ void R_Register( void )
 	// make sure all the commands added here are also
 	// removed in R_Shutdown
 	ri.Cmd_AddCommand( "imagelist", R_ImageList_f );
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	ri.Cmd_AddCommand( "gc_texmem", GC_TexMem_f );
+#endif
 	ri.Cmd_AddCommand( "shaderlist", R_ShaderList_f );
 	ri.Cmd_AddCommand( "skinlist", R_SkinList_f );
 	ri.Cmd_AddCommand( "modellist", R_Modellist_f );
@@ -1199,6 +1208,11 @@ void R_Init( void ) {
 	int	err;
 	int i;
 	byte *ptr;
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	int hunkStart;
+
+	hunkStart = Hunk_MemoryRemaining();
+#endif
 
 	ri.Printf( PRINT_ALL, "----- R_Init -----\n" );
 
@@ -1292,6 +1306,9 @@ void R_Init( void ) {
 	// print info
 	GfxInfo_f();
 	ri.Printf( PRINT_ALL, "----- finished R_Init -----\n" );
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	ri.Printf( PRINT_ALL, "GC rhunk: R_Init %i\n", hunkStart - Hunk_MemoryRemaining() );
+#endif
 }
 
 /*
@@ -1307,6 +1324,9 @@ void RE_Shutdown( qboolean destroyWindow ) {
 	ri.Cmd_RemoveCommand ("screenshotJPEG");
 	ri.Cmd_RemoveCommand ("screenshot");
 	ri.Cmd_RemoveCommand ("imagelist");
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	ri.Cmd_RemoveCommand ("gc_texmem");
+#endif
 	ri.Cmd_RemoveCommand ("shaderlist");
 	ri.Cmd_RemoveCommand ("skinlist");
 	ri.Cmd_RemoveCommand ("gfxinfo");
@@ -1344,6 +1364,9 @@ void RE_EndRegistration( void ) {
 	if (!ri.Sys_LowPhysicalMemory()) {
 		RB_ShowImages();
 	}
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	GXBE_TexHeapReport( "end registration" );
+#endif
 }
 
 
