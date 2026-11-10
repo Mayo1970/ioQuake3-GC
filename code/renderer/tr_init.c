@@ -178,7 +178,9 @@ int		max_polyverts;
 */
 static void InitOpenGL( void )
 {
+#ifndef HW_DOL
 	char renderer_buffer[1024];
+#endif
 
 	//
 	// initialize OS specific portions of the renderer
@@ -193,6 +195,13 @@ static void InitOpenGL( void )
 	
 	if ( glConfig.vidWidth == 0 )
 	{
+#ifdef HW_DOL
+		GLimp_Init();
+
+		/* GX supports up to 1024x1024 textures; don't query GL */
+		glConfig.maxTextureSize = 1024;
+		glConfig.textureEnvAddAvailable = qtrue;
+#else
 		GLint		temp;
 		
 		GLimp_Init();
@@ -209,6 +218,7 @@ static void InitOpenGL( void )
 		{
 			glConfig.maxTextureSize = 0;
 		}
+#endif
 	}
 
 	// init command buffers and SMP
@@ -374,8 +384,12 @@ byte *RB_ReadPixels(int x, int y, int width, int height, size_t *offset, int *pa
 	byte *buffer, *bufstart;
 	int padwidth, linelen;
 	GLint packAlign;
-	
+
+#ifdef HW_DOL
+	packAlign = 4;	/* GL default; qglGetIntegerv is a no-op stub */
+#else
 	qglGetIntegerv(GL_PACK_ALIGNMENT, &packAlign);
+#endif
 	
 	linelen = width * 3;
 	padwidth = PAD(linelen, packAlign);
@@ -384,7 +398,11 @@ byte *RB_ReadPixels(int x, int y, int width, int height, size_t *offset, int *pa
 	buffer = ri.Hunk_AllocateTempMemory(padwidth * height + *offset + packAlign - 1);
 	
 	bufstart = PADP((intptr_t) buffer + *offset, packAlign);
+#ifdef HW_DOL
+	GXBE_ReadPixelsRGB(x, y, width, height, padwidth - linelen, bufstart);
+#else
 	qglReadPixels(x, y, width, height, GL_RGB, GL_UNSIGNED_BYTE, bufstart);
+#endif
 	
 	*offset = bufstart - buffer;
 	*padlen = padwidth - linelen;
@@ -770,7 +788,11 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 	
 	cmd = (const videoFrameCommand_t *)data;
 	
+#ifdef HW_DOL
+	packAlign = 4;	/* GL default; qglGetIntegerv is a no-op stub */
+#else
 	qglGetIntegerv(GL_PACK_ALIGNMENT, &packAlign);
+#endif
 
 	linelen = cmd->width * 3;
 
@@ -783,8 +805,12 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 
 	cBuf = PADP(cmd->captureBuffer, packAlign);
 		
+#ifdef HW_DOL
+	GXBE_ReadPixelsRGB(0, 0, cmd->width, cmd->height, padlen, cBuf);
+#else
 	qglReadPixels(0, 0, cmd->width, cmd->height, GL_RGB,
 		GL_UNSIGNED_BYTE, cBuf);
+#endif
 
 	memcount = padwidth * cmd->height;
 
@@ -839,6 +865,9 @@ const void *RB_TakeVideoFrameCmd( const void *data )
 */
 void GL_SetDefaultState( void )
 {
+#ifdef HW_DOL
+	GXBE_SetDefaultState();
+#else
 	qglClearDepth( 1.0f );
 
 	qglCullFace(GL_FRONT);
@@ -877,6 +906,7 @@ void GL_SetDefaultState( void )
 	qglEnable( GL_SCISSOR_TEST );
 	qglDisable( GL_CULL_FACE );
 	qglDisable( GL_BLEND );
+#endif
 }
 
 /*

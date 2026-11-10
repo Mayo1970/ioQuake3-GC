@@ -390,7 +390,11 @@ void RE_RenderScene( const refdef_t *fd ) {
 	//
 	Com_Memset( &parms, 0, sizeof( parms ) );
 	parms.viewportX = tr.refdef.x;
+#ifdef HW_DOL
+	parms.viewportY = tr.refdef.y;
+#else
 	parms.viewportY = glConfig.vidHeight - ( tr.refdef.y + tr.refdef.height );
+#endif
 	parms.viewportWidth = tr.refdef.width;
 	parms.viewportHeight = tr.refdef.height;
 	parms.isPortal = qfalse;

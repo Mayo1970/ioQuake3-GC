@@ -364,11 +364,26 @@ static float	s_skyTexCoords[SKY_SUBDIVISIONS+1][SKY_SUBDIVISIONS+1][2];
 static void DrawSkySide( struct image_s *image, const int mins[2], const int maxs[2] )
 {
 	int s, t;
+#ifdef HW_DOL
+	byte c = (byte)( tr.identityLight * 255.0f );
+#endif
 
 	GL_Bind( image );
 
 	for ( t = mins[1]+HALF_SKY_SUBDIVISIONS; t < maxs[1]+HALF_SKY_SUBDIVISIONS; t++ )
 	{
+#ifdef HW_DOL
+		/* count must exactly match the emitted vertices or GX hangs */
+		GXBE_ImmediateBegin( GL_TRIANGLE_STRIP, ( maxs[0] - mins[0] + 1 ) * 2 );
+
+		for ( s = mins[0]+HALF_SKY_SUBDIVISIONS; s <= maxs[0]+HALF_SKY_SUBDIVISIONS; s++ )
+		{
+			GXBE_ImmediateTexVertex( s_skyTexCoords[t][s], s_skyPoints[t][s], c, c, c, 255 );
+			GXBE_ImmediateTexVertex( s_skyTexCoords[t+1][s], s_skyPoints[t+1][s], c, c, c, 255 );
+		}
+
+		GXBE_ImmediateEnd();
+#else
 		qglBegin( GL_TRIANGLE_STRIP );
 
 		for ( s = mins[0]+HALF_SKY_SUBDIVISIONS; s <= maxs[0]+HALF_SKY_SUBDIVISIONS; s++ )
@@ -381,6 +396,7 @@ static void DrawSkySide( struct image_s *image, const int mins[2], const int max
 		}
 
 		qglEnd();
+#endif /* HW_DOL */
 	}
 }
 
@@ -708,8 +724,13 @@ void RB_DrawSun( void ) {
 	if ( !r_drawSun->integer ) {
 		return;
 	}
+#ifdef HW_DOL
+	GXBE_LoadModelviewTranslatedGL( backEnd.viewParms.world.modelMatrix,
+	                                backEnd.viewParms.or.origin );
+#else
 	qglLoadMatrixf( backEnd.viewParms.world.modelMatrix );
 	qglTranslatef (backEnd.viewParms.or.origin[0], backEnd.viewParms.or.origin[1], backEnd.viewParms.or.origin[2]);
+#endif
 
 	dist = 	backEnd.viewParms.zFar / 1.75;		// div sqrt(3)
 	size = dist * 0.4;
@@ -816,6 +837,20 @@ void RB_StageIteratorSky( void ) {
 
 	// draw the outer skybox
 	if ( tess.shader->sky.outerbox[0] && tess.shader->sky.outerbox[0] != tr.defaultImage ) {
+#ifdef HW_DOL
+		GL_State( 0 );
+		GL_Cull( CT_FRONT_SIDED );
+
+		/* sky box geometry is centered on the view origin */
+		GXBE_LoadModelviewTranslatedGL( backEnd.viewParms.world.modelMatrix,
+		                                backEnd.viewParms.or.origin );
+
+		DrawSkyBox( tess.shader );
+
+		/* restore — clouds (RB_StageIteratorGeneric below) and everything
+		 * after draw with the untranslated world/entity matrix */
+		GXBE_LoadModelviewGL( backEnd.or.modelMatrix );
+#else
 		qglColor3f( tr.identityLight, tr.identityLight, tr.identityLight );
 		
 		qglPushMatrix ();
@@ -825,6 +860,7 @@ void RB_StageIteratorSky( void ) {
 		DrawSkyBox( tess.shader );
 
 		qglPopMatrix();
+#endif /* HW_DOL */
 	}
 
 	// generate the vertexes for all the clouds, which will be drawn

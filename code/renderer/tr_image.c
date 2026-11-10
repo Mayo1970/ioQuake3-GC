@@ -444,6 +444,7 @@ R_BlendOverTexture
 Apply a color blend over a set of pixels
 ==================
 */
+#ifndef HW_DOL
 static void R_BlendOverTexture( byte *data, int pixelCount, byte blend[4] ) {
 	int		i;
 	int		inverseAlpha;
@@ -479,6 +480,7 @@ byte	mipBlendColors[16][4] = {
 	{0,255,0,128},
 	{0,0,255,128},
 };
+#endif
 
 
 /*
@@ -487,6 +489,12 @@ Upload32
 
 ===============
 */
+#ifdef HW_DOL
+/* Smuggled past Upload32's unchanged upstream signature via file statics. */
+static int s_gxUploadTexnum = -1;
+static int s_gxUploadWrap   = GL_REPEAT;
+#endif
+
 extern qboolean charSet;
 static void Upload32( unsigned *data, 
 						  int width, int height, 
@@ -684,7 +692,13 @@ static void Upload32( unsigned *data,
 		( scaled_height == height ) ) {
 		if (!mipmap)
 		{
+#ifdef HW_DOL
+			GXBE_Upload32( data, scaled_width, scaled_height,
+			               (int)internalFormat, s_gxUploadTexnum, s_gxUploadWrap,
+			               qfalse );
+#else
 			qglTexImage2D (GL_TEXTURE_2D, 0, internalFormat, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+#endif
 			*pUploadWidth = scaled_width;
 			*pUploadHeight = scaled_height;
 			*format = internalFormat;
@@ -716,8 +730,18 @@ static void Upload32( unsigned *data,
 	*pUploadHeight = scaled_height;
 	*format = internalFormat;
 
+#ifdef HW_DOL
+	/* GXBE_Upload32 generates the mip chain itself, in place - same
+	 * mutation the stock CPU mip loop below would do. */
+	GXBE_Upload32( scaledBuffer, scaled_width, scaled_height,
+	               (int)internalFormat, s_gxUploadTexnum, s_gxUploadWrap,
+	               mipmap );
+#else
 	qglTexImage2D (GL_TEXTURE_2D, 0, internalFormat, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaledBuffer );
+#endif
 
+#ifndef HW_DOL
+	/* Skip this loop under native GX - its uploads would be no-ops anyway. */
 	if (mipmap)
 	{
 		int		miplevel;
@@ -741,6 +765,7 @@ static void Upload32( unsigned *data,
 			qglTexImage2D (GL_TEXTURE_2D, miplevel, internalFormat, scaled_width, scaled_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, scaledBuffer );
 		}
 	}
+#endif /* !HW_DOL */
 done:
 
 	if (mipmap)
@@ -795,7 +820,11 @@ image_t *R_CreateImage( const char *name, const byte *pic, int width, int height
 	}
 
 	image = tr.images[tr.numImages] = ri.Hunk_Alloc( sizeof( image_t ), h_low );
+#ifdef HW_DOL
+	GXBE_CreateTexnum( &image->texnum );
+#else
 	image->texnum = 1024 + tr.numImages;
+#endif
 	tr.numImages++;
 
 	image->mipmap = mipmap;
@@ -820,6 +849,14 @@ image_t *R_CreateImage( const char *name, const byte *pic, int width, int height
 
 	GL_Bind(image);
 
+#ifdef HW_DOL
+	/* Upload32 does the real GX upload at its level-0 point, with the final
+	 * scaled buffer, not this original full-size pic. Slot/wrap/format hints smuggled below. */
+	s_gxUploadTexnum = (int)image->texnum;
+	s_gxUploadWrap   = glWrapClampMode;
+	GXBE_SetUploadImage( name, allowPicmip );
+#endif
+
 	Upload32( (unsigned *)pic, image->width, image->height, 
 								image->mipmap,
 								allowPicmip,
@@ -828,10 +865,12 @@ image_t *R_CreateImage( const char *name, const byte *pic, int width, int height
 								&image->uploadWidth,
 								&image->uploadHeight );
 
+#ifndef HW_DOL
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, glWrapClampMode );
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, glWrapClampMode );
 
 	qglBindTexture( GL_TEXTURE_2D, 0 );
+#endif
 
 	if ( image->TMU == 1 ) {
 		GL_SelectTexture( 0 );
@@ -1315,13 +1354,24 @@ void R_DeleteTextures( void ) {
 	int		i;
 
 	for ( i=0; i<tr.numImages ; i++ ) {
+#ifdef HW_DOL
+		GXBE_DeleteTexnum( (int)tr.images[i]->texnum );
+#else
 		qglDeleteTextures( 1, &tr.images[i]->texnum );
+#endif
 	}
 	Com_Memset( tr.images, 0, sizeof( tr.images ) );
 
 	tr.numImages = 0;
+#ifdef HW_DOL
+	s_gx_next_texnum = 0;
+#endif
 
 	Com_Memset( glState.currenttextures, 0, sizeof( glState.currenttextures ) );
+#ifdef HW_DOL
+	gxState.boundtex[0] = -1;
+	gxState.boundtex[1] = -1;
+#else
 	if ( qglActiveTextureARB ) {
 		GL_SelectTexture( 1 );
 		qglBindTexture( GL_TEXTURE_2D, 0 );
@@ -1330,6 +1380,7 @@ void R_DeleteTextures( void ) {
 	} else {
 		qglBindTexture( GL_TEXTURE_2D, 0 );
 	}
+#endif
 }
 
 /*
