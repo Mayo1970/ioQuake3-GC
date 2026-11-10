@@ -176,7 +176,7 @@ void R_LoadJPG(const char *filename, unsigned char **pic, int *width, int *heigh
   memcount = pixelcount * 4;
   row_stride = cinfo.output_width * cinfo.output_components;
 
-  out = ri.Malloc(memcount);
+  out = R_IMAGE_MALLOC(memcount);
 
   *width = cinfo.output_width;
   *height = cinfo.output_height;

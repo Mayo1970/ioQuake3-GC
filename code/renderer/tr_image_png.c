@@ -2399,7 +2399,7 @@ void R_LoadPNG(const char *name, byte **pic, int *width, int *height)
 	 *  Allocate output buffer.
 	 */
 
-	OutBuffer = ri.Malloc(IHDR_Width * IHDR_Height * Q3IMAGE_BYTESPERPIXEL); 
+	OutBuffer = R_IMAGE_MALLOC(IHDR_Width * IHDR_Height * Q3IMAGE_BYTESPERPIXEL); 
 	if(!OutBuffer)
 	{
 		ri.Free(DecompressedData); 
@@ -2418,7 +2418,7 @@ void R_LoadPNG(const char *name, byte **pic, int *width, int *height)
 		{
 			if(!DecodeImageNonInterlaced(IHDR, OutBuffer, DecompressedData, DecompressedDataLength, HasTransparentColour, TransparentColour, OutPal))
 			{
-				ri.Free(OutBuffer); 
+				R_IMAGE_FREE(OutBuffer); 
 				ri.Free(DecompressedData); 
 				CloseBufferedFile(ThePNG);
 
@@ -2432,7 +2432,7 @@ void R_LoadPNG(const char *name, byte **pic, int *width, int *height)
 		{
 			if(!DecodeImageInterlaced(IHDR, OutBuffer, DecompressedData, DecompressedDataLength, HasTransparentColour, TransparentColour, OutPal))
 			{
-				ri.Free(OutBuffer); 
+				R_IMAGE_FREE(OutBuffer); 
 				ri.Free(DecompressedData); 
 				CloseBufferedFile(ThePNG);
 
@@ -2444,7 +2444,7 @@ void R_LoadPNG(const char *name, byte **pic, int *width, int *height)
 
 		default :
 		{
-			ri.Free(OutBuffer); 
+			R_IMAGE_FREE(OutBuffer); 
 			ri.Free(DecompressedData); 
 			CloseBufferedFile(ThePNG);
 
