@@ -392,7 +392,11 @@ R_MipMap
 Operates in place, quartering the size of the texture
 ================
 */
+#ifdef HW_DOL
+void R_MipMap (byte *in, int width, int height) {
+#else
 static void R_MipMap (byte *in, int width, int height) {
+#endif
 	int		i, j;
 	byte	*out;
 	int		row;
