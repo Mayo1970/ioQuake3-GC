@@ -3,8 +3,8 @@
 ioQuake3-GC is under the GNU General Public License, version 2 (`LICENSE`). It is built from the projects below. Each
 keeps its own licence. This file ships beside every `.dol` in a release.
 
-The sources are vendored in task QGC-5. Until then the `Where` column shows the planned path. Each vendoring merge
-updates this file with the exact source commit (task QGC-42).
+QGC-5 vendored the engine baseline into `code/` from old-mac-quake3 commit
+`2f187c09c8a816bb62d5b7ccdbee24c65a1581fb`, unchanged.
 
 ## Summary
 
