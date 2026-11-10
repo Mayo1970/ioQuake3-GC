@@ -49,7 +49,7 @@ The `tr_*.c` files keep the upstream renderer logic. GX calls sit where the Wii 
 | `GXBE_SetUploadImage( name, flags )` becomes `( name, qboolean picmip )`; `IMGFLAG_PICMIP` tests become `picmip`; `IMGFLAG_NO_COMPRESSION` test dropped | Our `image_t` has no `IMGFLAG_*`. |
 | `gx_is_text_art` and the `STANDALONETA` block removed | Team Arena only. |
 | `WII_GX_*` constants become `GC_GX_*` | Renamed in `gc_glimp.h`. |
-| Compile fixes for our older types (`GLuint` texnums, older struct fields, no `qglGetStringi`) | Adapt the backend to the 2013 tree. |
+| No type changes | `glIndex_t`, `color4ub_t`, `vec2_t` and the `tess` fields exist in the 2013 tree. |
 
 ### Part 2 adaptations
 
@@ -65,7 +65,7 @@ The `tr_*.c` files keep the upstream renderer logic. GX calls sit where the Wii 
 
 ## 3. Cache and alignment (AC3)
 
-Every buffer below is 32-byte aligned. `DCFlushRange` runs after the CPU writes data the GP will read.
+Every buffer the GP reads or writes is 32-byte aligned. `DCFlushRange` runs after the CPU writes data the GP will read. The readback destination is CPU-only.
 
 | Buffer | File | Alignment | `DCFlushRange` | `GX_InvalidateTexAll` |
 |---|---|---|---|---|
