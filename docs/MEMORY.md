@@ -148,5 +148,68 @@ Binary and BSS targets include the native modules (QGC-10) and the GX renderer. 
 | QGC-11 | before (main 1d86ee3) | 1490694 | 409164 | 29105728 | 31005586 |
 | QGC-11 | after: interpreter and QVM loader out | 1485686 | 407836 | 29105728 | 30999250 |
 | QGC-11 | delta | -5008 | -1328 | 0 | -6336 |
+| QGC-12 | before (main 6c81c79) | 1485686 | 407836 | 29105728 | 30999250 |
+| QGC-12 | after: BSS diet | 1486238 | 407924 | 6832096 | 8726258 |
+| QGC-12 | delta | +552 | +88 | -22273632 | -22272992 |
 
 `.text` 1455680 (-4960) and `.rodata` 152928 (-936) from `size -A`.
+
+## 8. BSS cuts (QGC-12)
+
+Bytes from release `powerpc-eabi-nm -S`; `cin` disappears as a symbol once it moves to `malloc`.
+
+| Symbol | File | Change | Before | After | Saved |
+|---|---|---|---:|---:|---:|
+| `s_rawsamples` | client/snd_dma.c | `MAX_RAW_STREAMS` 129 -> 1 | 16908288 | 131072 | 16777216 |
+| `s_rawend` | client/snd_dma.c | `MAX_RAW_STREAMS` 129 -> 1 | 516 | 4 | 512 |
+| `cls` | client/cl_main.c | `MAX_GLOBAL_SERVERS` 4096 -> 256, `MAX_SERVERSTATUSREQUESTS` 16 -> 4 | 893132 | 109772 | 783360 |
+| `cl_serverStatusList` | client/cl_main.c | `MAX_SERVERSTATUSREQUESTS` 16 -> 4 | 131904 | 32976 | 98928 |
+| `buckets` | server/sv_main.c | `MAX_BUCKETS` 16384 -> 1024 | 655360 | 40960 | 614400 |
+| `cvar_indexes` | qcommon/cvar.c | `MAX_CVARS` 2048 -> 1024 | 147456 | 73728 | 73728 |
+| `cmd_text_buf` | qcommon/cmd.c | `MAX_CMD_BUFFER` 131072 -> 16384 | 131072 | 16384 | 114688 |
+| `planes` | qcommon/cm_patch.c | static array -> hunk temp pointer | 40960 | 4 | 40956 |
+| `facets` | qcommon/cm_patch.c | static array -> hunk temp pointer | 655360 | 4 | 655356 |
+| `cin` | client/cl_cin.c | static struct -> `malloc` block | 2426388 | 0 | 2426388 |
+| `vq2` | client/cl_cin.c | static array -> `malloc` block | 32768 | 4 | 32764 |
+| `vq4` | client/cl_cin.c | static array -> `malloc` block | 131072 | 4 | 131068 |
+| `vq8` | client/cl_cin.c | static array -> `malloc` block | 524288 | 4 | 524284 |
+| **Total** | | | **22678564** | **404916** | **22273648** |
+
+`cin` and the VQ tables are now one `malloc` block of 3114516 bytes while a cinematic plays.
+`planes` and `facets` now use 696320 bytes of hunk temp memory during each patch build.
+
+### Limits changed
+
+| Limit | File | Upstream | GameCube | Why it is safe |
+|---|---|---:|---:|---|
+| `MAX_RAW_STREAMS` | client/snd_local.h | 129 | 1 | Extra streams are VoIP only; `USE_VOIP` is not built. Music and cinematic audio use stream 0. |
+| `MAX_GLOBAL_SERVERS` | qcommon/q_shared.h | 4096 | 256 | Internet list only; q3_ui shows at most 128 global servers. |
+| `MAX_SERVERSTATUSREQUESTS` | qcommon/q_shared.h | 16 | 4 | Server browser status queries in flight; not used in a match. |
+| `MAX_BUCKETS` | server/sv_main.c | 16384 | 1024 | Rate-limit records for connectionless packets per address; a LAN host sees few addresses. |
+| `MAX_CVARS` | qcommon/cvar.c | 2048 | 1024 | id Quake III 1.32 value. |
+| `MAX_CMD_BUFFER` | qcommon/cmd.c | 131072 | 16384 | id Quake III 1.32 value. |
+
+### Top 20 BSS symbols after QGC-12
+
+| Rank | Symbol | Bytes | KB |
+|---:|---|---:|---:|
+| 1 | `g_entities` | 823296 | 804.0 |
+| 2 | `cg_entities` | 733184 | 716.0 |
+| 3 | `cl` | 679024 | 663.1 |
+| 4 | `s_gcMainStack` | 524288 | 512.0 |
+| 5 | `s_knownSfx` | 393216 | 384.0 |
+| 6 | `sv` | 312388 | 305.1 |
+| 7 | `memoryPool` | 262144 | 256.0 |
+| 8 | `__EH_FRAME_BEGIN__` | 212692 | 207.7 |
+| 9 | `clc` | 173628 | 169.6 |
+| 10 | `cgs` | 153812 | 150.2 |
+| 11 | `cg_localEntities` | 149504 | 146.0 |
+| 12 | `s_rawsamples` | 131072 | 128.0 |
+| 13 | `memoryPool` | 131072 | 128.0 |
+| 14 | `particles` | 126976 | 124.0 |
+| 15 | `svs` | 122976 | 120.1 |
+| 16 | `cg` | 117004 | 114.3 |
+| 17 | `cls` | 109772 | 107.2 |
+| 18 | `g_globalserverlist` | 97280 | 95.0 |
+| 19 | `cvar_indexes` | 73728 | 72.0 |
+| 20 | `cg_markPolys` | 73728 | 72.0 |

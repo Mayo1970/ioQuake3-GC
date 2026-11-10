@@ -1391,10 +1391,18 @@ typedef enum _flag_status {
 
 
 
+#ifdef HW_DOL
+#define	MAX_GLOBAL_SERVERS				256
+#else
 #define	MAX_GLOBAL_SERVERS				4096
+#endif
 #define	MAX_OTHER_SERVERS					128
 #define MAX_PINGREQUESTS					32
+#ifdef HW_DOL
+#define MAX_SERVERSTATUSREQUESTS	4
+#else
 #define MAX_SERVERSTATUSREQUESTS	16
+#endif
 
 #define SAY_ALL		0
 #define SAY_TEAM	1
