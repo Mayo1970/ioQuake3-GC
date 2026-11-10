@@ -55,46 +55,46 @@ Sizes from the release ELF. Source file from the `DEBUG=1` ELF, path relative to
 
 | Rank | Symbol | Bytes | KB | Source file |
 |---:|---|---:|---:|---|
-| 1 | `s_rawsamples` | 16908288 | 16512.0 | code/client/snd_dma.c:88 |
-| 2 | `cin` | 2426388 | 2369.5 | code/client/cl_cin.c:130 |
-| 3 | `cls` | 893132 | 872.2 | code/client/cl_main.c:127 |
-| 4 | `cl` | 679024 | 663.1 | code/client/cl_main.c:125 |
-| 5 | `facets` | 655360 | 640.0 | code/qcommon/cm_patch.c:421 |
-| 6 | `buckets` | 655360 | 640.0 | code/server/sv_main.c:378 |
-| 7 | `vq8` | 524288 | 512.0 | code/client/cl_cin.c:74 |
-| 8 | `s_gcMainStack` | 524288 | 512.0 | code/sys/gc_main.c:13 |
-| 9 | `s_knownSfx` | 393216 | 384.0 | code/client/snd_dma.c:73 |
-| 10 | `sv` | 312388 | 305.1 | code/server/sv_main.c:30 |
-| 11 | `clc` | 173628 | 169.6 | code/client/cl_main.c:126 |
-| 12 | `cvar_indexes` | 147456 | 144.0 | code/qcommon/cvar.c:32 |
-| 13 | `cl_serverStatusList` | 131904 | 128.8 | code/client/cl_main.c:152 |
-| 14 | `vq4` | 131072 | 128.0 | code/client/cl_cin.c:73 |
-| 15 | `cmd_text_buf` | 131072 | 128.0 | code/qcommon/cmd.c:38 |
-| 16 | `svs` | 122976 | 120.1 | code/server/sv_main.c:29 |
-| 17 | `con` | 65608 | 64.1 | code/client/cl_console.c:58 |
-| 18 | `string.2` | 64000 | 62.5 | code/qcommon/q_shared.c:990 |
-| 19 | `msgHuff` | 57400 | 56.1 | code/qcommon/msg.c:25 |
-| 20 | `loopSounds` | 57344 | 56.0 | code/client/snd_dma.c:84 |
-| 21 | `loopbacks` | 44944 | 43.9 | code/qcommon/net_chan.c:436 |
-| 22 | `pcmCaptureBuffer.0` | 44100 | 43.1 | code/client/cl_avi.c:520 |
-| 23 | `serverBans` | 40960 | 40.0 | code/server/sv_main.c:65 |
-| 24 | `planes` | 40960 | 40.0 | code/qcommon/cm_patch.c:418 |
-| 25 | `cl_pinglist` | 34048 | 33.2 | code/client/cl_main.c:140 |
-| 26 | `vq2` | 32768 | 32.0 | code/client/cl_cin.c:72 |
-| 27 | `paintbuffer` | 32768 | 32.0 | code/client/snd_mix.c:30 |
-| 28 | `com_pushedEvents` | 24576 | 24.0 | code/qcommon/common.c:1899 |
-| 29 | `cinTable` | 19520 | 19.1 | code/client/cl_cin.c:131 |
-| 30 | `fsh` | 18432 | 18.0 | code/qcommon/files.c:286 |
-| 31 | `value.0` | 16384 | 16.0 | code/qcommon/q_shared.c:1044 |
+| 1 | `s_rawsamples` | 16908288 | 16512.0 | client/snd_dma.c:88 |
+| 2 | `cin` | 2426388 | 2369.5 | client/cl_cin.c:130 |
+| 3 | `cls` | 893132 | 872.2 | client/cl_main.c:127 |
+| 4 | `cl` | 679024 | 663.1 | client/cl_main.c:125 |
+| 5 | `facets` | 655360 | 640.0 | qcommon/cm_patch.c:421 |
+| 6 | `buckets` | 655360 | 640.0 | server/sv_main.c:378 |
+| 7 | `vq8` | 524288 | 512.0 | client/cl_cin.c:74 |
+| 8 | `s_gcMainStack` | 524288 | 512.0 | sys/gc_main.c:13 |
+| 9 | `s_knownSfx` | 393216 | 384.0 | client/snd_dma.c:73 |
+| 10 | `sv` | 312388 | 305.1 | server/sv_main.c:30 |
+| 11 | `clc` | 173628 | 169.6 | client/cl_main.c:126 |
+| 12 | `cvar_indexes` | 147456 | 144.0 | qcommon/cvar.c:32 |
+| 13 | `cl_serverStatusList` | 131904 | 128.8 | client/cl_main.c:152 |
+| 14 | `vq4` | 131072 | 128.0 | client/cl_cin.c:73 |
+| 15 | `cmd_text_buf` | 131072 | 128.0 | qcommon/cmd.c:38 |
+| 16 | `svs` | 122976 | 120.1 | server/sv_main.c:29 |
+| 17 | `con` | 65608 | 64.1 | client/cl_console.c:58 |
+| 18 | `string.2` | 64000 | 62.5 | qcommon/q_shared.c:990 |
+| 19 | `msgHuff` | 57400 | 56.1 | qcommon/msg.c:25 |
+| 20 | `loopSounds` | 57344 | 56.0 | client/snd_dma.c:84 |
+| 21 | `loopbacks` | 44944 | 43.9 | qcommon/net_chan.c:436 |
+| 22 | `pcmCaptureBuffer.0` | 44100 | 43.1 | client/cl_avi.c:520 |
+| 23 | `serverBans` | 40960 | 40.0 | server/sv_main.c:65 |
+| 24 | `planes` | 40960 | 40.0 | qcommon/cm_patch.c:418 |
+| 25 | `cl_pinglist` | 34048 | 33.2 | client/cl_main.c:140 |
+| 26 | `vq2` | 32768 | 32.0 | client/cl_cin.c:72 |
+| 27 | `paintbuffer` | 32768 | 32.0 | client/snd_mix.c:30 |
+| 28 | `com_pushedEvents` | 24576 | 24.0 | qcommon/common.c:1899 |
+| 29 | `cinTable` | 19520 | 19.1 | client/cl_cin.c:131 |
+| 30 | `fsh` | 18432 | 18.0 | qcommon/files.c:286 |
+| 31 | `value.0` | 16384 | 16.0 | qcommon/q_shared.c:1044 |
 | 32 | `s_excptStack` | 16384 | 16.0 | libogc |
-| 33 | `fs_serverReferencedPaks` | 16384 | 16.0 | code/qcommon/files.c:300 |
-| 34 | `fs_serverReferencedPakNames` | 16384 | 16.0 | code/qcommon/files.c:301 |
-| 35 | `fs_serverPaks` | 16384 | 16.0 | code/qcommon/files.c:294 |
-| 36 | `fs_serverPakNames` | 16384 | 16.0 | code/qcommon/files.c:295 |
-| 37 | `cmd_tokenized` | 9216 | 9.0 | code/qcommon/cmd.c:351 |
-| 38 | `historyEditLines` | 8576 | 8.4 | code/client/cl_keys.c:30 |
-| 39 | `bspworld` | 8208 | 8.0 | code/botlib/be_aas_bspq3.c:87 |
-| 40 | `string.2` | 8192 | 8.0 | code/qcommon/msg.c:472 |
+| 33 | `fs_serverReferencedPaks` | 16384 | 16.0 | qcommon/files.c:300 |
+| 34 | `fs_serverReferencedPakNames` | 16384 | 16.0 | qcommon/files.c:301 |
+| 35 | `fs_serverPaks` | 16384 | 16.0 | qcommon/files.c:294 |
+| 36 | `fs_serverPakNames` | 16384 | 16.0 | qcommon/files.c:295 |
+| 37 | `cmd_tokenized` | 9216 | 9.0 | qcommon/cmd.c:351 |
+| 38 | `historyEditLines` | 8576 | 8.4 | client/cl_keys.c:30 |
+| 39 | `bspworld` | 8208 | 8.0 | botlib/be_aas_bspq3.c:87 |
+| 40 | `string.2` | 8192 | 8.0 | qcommon/msg.c:472 |
 
 Sum of the 40 sizes: 25519764 bytes (24.34 MB).
 Total `.bss`: 25710812 bytes (24.52 MB).
@@ -103,14 +103,18 @@ Total `.bss`: 25710812 bytes (24.52 MB).
 
 | Line | Value |
 |---|---|
-| boot Arena1 | pending (supervisor smoke) |
-| Arena1 after `Com_Init` | pending (supervisor smoke) |
-| Arena1 after map load | pending (supervisor smoke) |
-| hunk total | pending (supervisor smoke) |
-| hunk used (low + high permanent) | pending (supervisor smoke) |
-| zone total | pending (supervisor smoke) |
-| zone used | pending (supervisor smoke) |
-| small zone used | pending (supervisor smoke) |
+| boot Arena1 | 39493632 (37.66 MB) |
+| Arena1 after `Com_Init` | 876544 (0.84 MB) |
+| Arena1 after map load | 765952 (0.73 MB) |
+| hunk total | 25165824 (24.00 MB) |
+| hunk used (low + high permanent) | 15779616 (15.05 MB): low 10630624, high 5148992 |
+| zone total | 12582912 (12.00 MB) |
+| zone used | 1661572 (1.58 MB) in 290 blocks: botlib 436572, other 1225000 |
+| small zone used | 58520 (0.06 MB) |
+
+Measured by the supervisor: `DEBUG=1 GC_MEM1_MB=64`, headless Dolphin 5.0-17995 with the MEM1 override at 64 MB (the stock 24 MB cannot hold the 24.52 MB BSS).
+Map q3dm1, QVM interpreter for qagame (4431296 bytes of hunk), ui (2348544) and cgame (5773312), null renderer, null sound.
+Arena1 values depend on the 64 MB override; the hunk and zone values do not.
 
 ## 5. Budget for 24 MB
 
@@ -118,20 +122,20 @@ Total `.bss`: 25710812 bytes (24.52 MB).
 
 | Line | Measured now (MB) | Target (MB) | Notes |
 |---|---:|---|---|
-| binary (text + data + rodata) | 0.97 | TBD | `.text` 896224 + `.data` 21228 + `.rodata` 100032 |
-| BSS (incl. the 512 KB main stack) | 24.52 | TBD | `s_gcMainStack` is 524288 bytes |
+| binary (text + data + rodata) | 1.11 | TBD | Berkeley text + data: 914326 + 254652 = 1168978 bytes (includes `.rodata` and `.eh_frame`) |
+| BSS (incl. the 512 KB main stack) | 24.52 | TBD | Berkeley bss 25711264 bytes (`.bss` + `.sbss`); `s_gcMainStack` is 524288 bytes |
 | XFB | 0.59 | TBD | 1 framebuffer x 640 x 480 x 2 bytes (NTSC); PAL height 576 gives 0.70 MB |
 | GX FIFO | 0.00 | TBD | no GX yet |
-| hunk | 24.00 | TBD | `com_hunkMegs` default 24 |
-| zone | 12.00 | TBD | `com_zoneMegs` default 12 |
+| hunk | 24.00 | TBD | `com_hunkMegs` default 24; 15.05 MB used on q3dm1 with QVMs (section 4) |
+| zone | 12.00 | TBD | `com_zoneMegs` default 12; 1.58 MB used on q3dm1 (section 4) |
 | sound | 0.00 | TBD | `com_soundMegs` default is 8 MB; the null sound driver allocates nothing |
 | textures | 0.00 | TBD | null renderer |
-| other (libogc, malloc, OS low memory) | 0.00 | TBD | not measured; libogc BSS is inside the BSS line |
-| total | 62.07 | TBD | sum of measured column: 65091884 bytes |
+| other (libogc, malloc, OS low memory) | n/a | TBD | not measured; libogc BSS is inside the BSS line |
+| total | 62.22 | TBD | sum of measured column: 65243378 bytes |
 
 24 MB = 25165824 bytes.
 
 ## 6. Notes
 
-- `s_rawsamples`, 16908288 bytes (16.13 MB): `portable_samplepair_t s_rawsamples[MAX_RAW_STREAMS][MAX_RAW_SAMPLES]` (`snd_dma.c:88`), the raw streaming sample ring for background music; `MAX_RAW_STREAMS` is `MAX_CLIENTS * 2 + 1` = 129 and `MAX_RAW_SAMPLES` is 16384.
+- `s_rawsamples`, 16908288 bytes (16.13 MB): `portable_samplepair_t s_rawsamples[MAX_RAW_STREAMS][MAX_RAW_SAMPLES]` (`snd_dma.c:88`), the raw stream rings (stream 0: music and cinematic audio; the others: VoIP and entity streams); `MAX_RAW_STREAMS` is `MAX_CLIENTS * 2 + 1` = 129 and `MAX_RAW_SAMPLES` is 16384.
 - `cin`, 2426388 bytes (2.31 MB): `static cinematics_t cin` (`cl_cin.c:130`), the RoQ cinematic decoder state; its `linbuf[512 * 512 * 4 * 2]` alone is 2097152 bytes.
