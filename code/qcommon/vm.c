@@ -623,7 +623,7 @@ vm_t *VM_Create( const char *module, intptr_t (*systemCalls)(intptr_t *),
 		fileHandle_t f = 0;
 
 		Com_sprintf(qvmName, sizeof(qvmName), "vm/%s.qvm", module);
-		FS_FOpenFileRead(qvmName, &f, qtrue);
+		FS_FOpenFileRead(qvmName, &f, qfalse);
 		if (f)
 			FS_FCloseFile(f);
 	}
