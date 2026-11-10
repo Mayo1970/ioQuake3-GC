@@ -110,3 +110,15 @@ VIDEO_WaitVSync only when r_swapInterval is not 0
 ```
 
 `GX_Flush` pushes the copy out of the write-gather pipe before the VI can show the XFB. The default `r_swapInterval` is 0, so no vsync wait runs and a long frame does not drop to half rate.
+
+Dolphin smoke (`DEBUG=1 GC_MEM1_MB=64`, `com_hunkMegs 24`, q3dm1, 300 s, no error):
+
+| Run | `GC video:` line |
+|---|---|
+| NTSC disc | `tvmode 0 fb 640x480 efb 480 xfb 480 vi 640x480`, xfbmode DF |
+| PAL disc (bi2 region 2) | `tvmode 4 fb 640x480 efb 480 xfb 576 vi 640x576`, xfbmode DF |
+| NTSC disc, `SYSCONF.IPL.PGS=True` | `tvmode 2 fb 640x480 efb 480 xfb 480 vi 640x480`, xfbmode SF |
+
+PAL60 is checked by code review: Dolphin's GameCube boot does not set EuRGB60.
+Frame dumps (Dolphin OGL under Xvfb) show the console over the main menu (NTSC) and q3dm1 gameplay (PAL 576i).
+`r_swapInterval 1` with `vid_restart` runs q3dm1 with no error.
