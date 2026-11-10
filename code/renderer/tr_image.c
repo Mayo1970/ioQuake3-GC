@@ -22,6 +22,24 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // tr_image.c
 #include "tr_local.h"
 
+#ifdef HW_DOL
+#include <stdlib.h>
+
+/* Decoded pixels live only until the upload; outside the 3 MB zone (QGC-17). */
+void *R_ImageMalloc( int size ) {
+	void *ptr = malloc( size );
+
+	if ( !ptr ) {
+		ri.Error( ERR_DROP, "R_ImageMalloc: failed on %i bytes", size );
+	}
+	return ptr;
+}
+
+void R_ImageFree( void *ptr ) {
+	free( ptr );
+}
+#endif
+
 static byte			 s_intensitytable[256];
 static unsigned char s_gammatable[256];
 
@@ -1038,7 +1056,7 @@ image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmi
 	}
 
 	image = R_CreateImage( ( char * ) name, pic, width, height, mipmap, allowPicmip, glWrapClampMode );
-	ri.Free( pic );
+	R_IMAGE_FREE( pic );
 	return image;
 }
 

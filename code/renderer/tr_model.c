@@ -271,6 +271,13 @@ qhandle_t RE_RegisterModel( const char *name ) {
 	char		localName[ MAX_QPATH ];
 	const char	*ext;
 	char		altName[ MAX_QPATH ];
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	int			hunkStart;
+#endif
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	hunkStart = Hunk_MemoryRemaining();
+#endif
 
 	if ( !name || !name[0] ) {
 		ri.Printf( PRINT_ALL, "RE_RegisterModel: NULL name\n" );
@@ -346,6 +353,9 @@ qhandle_t RE_RegisterModel( const char *name ) {
 			else
 			{
 				// Something loaded
+#if defined(HW_DOL) && defined(GC_DEBUG)
+				ri.Printf( PRINT_ALL, "GC rhunk: model %s %i\n", name, hunkStart - Hunk_MemoryRemaining() );
+#endif
 				return mod->index;
 			}
 		}
@@ -375,6 +385,10 @@ qhandle_t RE_RegisterModel( const char *name ) {
 		}
 	}
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	if ( hModel )
+		ri.Printf( PRINT_ALL, "GC rhunk: model %s %i\n", name, hunkStart - Hunk_MemoryRemaining() );
+#endif
 	return hModel;
 }
 

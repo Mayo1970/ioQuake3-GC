@@ -337,3 +337,73 @@ Release `.elf` size:
 | before (main 9f69550) | 1917280 | 490084 | 8222592 | 10629956 |
 | QGC-16 | 1917952 | 490320 | 8222592 | 10630864 |
 | delta | +672 | +236 | 0 | +908 |
+
+## 13. Texture formats and budget (QGC-17)
+
+### Texture formats
+
+Textures are 16-bit: `RGB565` when opaque, `RGB5A3` with alpha. Mips are box-reduced in place from the scaled upload buffer (`tr_gx_texture.c`).
+Each texture is one `memalign(32)` buffer outside the hunk and the zone. A buffer that cannot be allocated shows the default texture and prints
+`GX texture <name>: out of memory (<n> bytes), using the default texture`.
+
+Debug builds print `GC tex end registration:` after each load, plus the `gc_texmem` command: resident bytes, peak, the CMPR-equivalent size, malloc use and free Arena1.
+
+### Measurements
+
+`DEBUG=1 GC_MEM1_MB=64`, headless Dolphin 5.0-17995 with a 64 MB MEM1 override, `com_hunkMegs 24`, null sound, `g_gametype 0`, 4 bots (`addbot sarge/anarki/visor/doom 2`).
+Texture heap is the resident size after the bots join. The CMPR-equivalent size is in brackets: CMPR for opaque textures with picmip, and for opaque 2D art of 256x256 or more; lightmaps and other `*` images stay 16-bit.
+
+| Map | picmip 0 | picmip 1 | picmip 2 |
+|---|---:|---:|---:|
+| q3dm1 (352 textures) | 17201888 (7522496) | 5736544 (3026144) | 2870080 (1902752) |
+| q3dm6 (368 textures) | 18322624 (6862592) | 6296768 (3141568) | 3290176 (2211552) |
+| q3dm17 (322 textures) | 11710784 (5057312) | 4373824 (2419424) | 2539456 (1759936) |
+
+q3dm6 at picmip 0, 1 and 2 used a local test build with a 6 MB zone, because the 3 MB zone failed (next section).
+
+### Decisions (Matt, 2026-11-10)
+
+- **`r_picmip` default 2** on `HW_DOL`. Only picmip 2 is near the 3.0 MB texture line of section 5; q3dm6 is 0.29 MB over.
+- **CMPR off.** At picmip 2 it would save 0.74 to 1.03 MB per map, at an encode cost on each load that Dolphin cannot measure on a 485 MHz Gekko.
+  The encoder stays in `tr_gx_texture.c`; `gx_want_cmpr` returns false. Revisit in QGC-36.
+- **Image decode buffers use `malloc`.** With the GX renderer, q3dm6 failed in the 3 MB zone: `Z_Malloc: failed on allocation of 1048616 bytes` (a 512x512 JPG decode buffer from `ri.Malloc`).
+  On `HW_DOL` the decoded RGBA buffer of every image file comes from `malloc` and is freed after the upload. The zone stays 3 MB.
+
+### Part 2 result
+
+Same setup, defaults (picmip 2, 3 MB zone). All three maps load, 4 bots join, no error.
+
+| Map | Hunk peak | Zone peak (of 3145728) | Texture heap | Renderer world |
+|---|---:|---:|---:|---:|
+| q3dm1 | 20033784 (19.11 MB) | 2401748 | 2870080 | 1730720 |
+| q3dm6 | 23745784 (22.65 MB) | 2649268 | 3290176 | 3732032 |
+| q3dm17 | 19823224 (18.90 MB) | 2543952 | 2539456 | 1908000 |
+
+AC3 check: a local test build failed every `gothic_block` texture on q3dm1. 13 textures printed the line above; the match ran to the end of the test with 4 bots and no error.
+
+### Hunk with the GX renderer (q3dm1, 4 bots)
+
+| Owner | Bytes |
+|---|---:|
+| player models, 5 sets (all 3 LODs each, 2.6 to 3.0 MB per set) | 10742944 |
+| other models (weapons, items, gibs) | 320352 |
+| `R_Init` (1068320 of it is `backEndData`) | 1684768 |
+| renderer world | 1730720 |
+| shader script text (`ScanAndLoadShaderFiles`) | 591040 |
+| renderer temp: whole BSP read (`RE_LoadWorldMap`) | 1906720 (freed) |
+
+### Stock 24 MB: open
+
+Stock memory still stops at the hunk clamp (section 11). The q3dm1 runtime need is about 28.2 MB against 13.16 MB of boot Arena1 (13803520 bytes, section 11)
+(hunk 19.11 + zone 3.00 + textures 2.74 + GX buffers 1.09 + small zone 0.50 + sound 1.00 + other 0.80). q3dm6 needs about 32.2 MB.
+Matt moved the stock fit to new tasks before QGC-18 (model frames in ARAM, renderer hunk cuts, BSS cuts).
+
+### Size
+
+| Release `.elf` | text | data | bss | dec |
+|---|---:|---:|---:|---:|
+| before (main 128dfb9) | 1917952 | 490320 | 8222592 | 10630864 |
+| QGC-17 | 1918448 | 490616 | 8230784 | 10639848 |
+| delta | +496 | +296 | +8192 | +8984 |
+
+The BSS line is `s_gx_texborrowed` (2048 slots, 8192 bytes), the default-texture fallback.

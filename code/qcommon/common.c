@@ -1826,6 +1826,10 @@ void *Hunk_Alloc( int size, ha_pref preference ) {
 #endif
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	GC_UpdateHunkPeak();
+	if ( size >= 32768 )
+		Com_Printf( "GC hunk: %s %i caller %p\n",
+					( hunk_permanent == &hunk_low ) ? "low" : "high",
+					size, __builtin_return_address( 0 ) );
 #endif
 	return buf;
 }
@@ -1881,6 +1885,9 @@ void *Hunk_AllocateTempMemory( int size ) {
 	// don't bother clearing, because we are going to load a file over it
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	GC_UpdateHunkPeak();
+	if ( size >= 32768 )
+		Com_Printf( "GC hunk: temp %i caller %p\n",
+					size, __builtin_return_address( 0 ) );
 #endif
 	return buf;
 }

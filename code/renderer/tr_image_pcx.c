@@ -152,7 +152,7 @@ void R_LoadPCX ( const char *filename, byte **pic, int *width, int *height)
 
 	palette = end-768;
 
-	pix = out = ri.Malloc(4 * size );
+	pix = out = R_IMAGE_MALLOC(4 * size );
 	for (i = 0 ; i < size ; i++)
 	{
 		unsigned char p = pic8[i];

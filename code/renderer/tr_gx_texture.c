@@ -21,6 +21,36 @@ static char      s_gx_hintName[MAX_QPATH];
 static qboolean  s_gx_hintPicmip;
 static qboolean  s_gx_hintValid;
 
+/* A slot that shows another slot's texture and owns no buffer. */
+static qboolean  s_gx_texborrowed[GX_MAX_TEXOBJS];
+
+#ifdef GC_DEBUG
+static int s_gx_texsize[GX_MAX_TEXOBJS];     /* bytes of the slot's buffer, 0 if none */
+static int s_gx_texcmpr[GX_MAX_TEXOBJS];     /* bytes the slot would take if the CMPR rule applied */
+static int s_gx_texResident, s_gx_texPeak, s_gx_texCount, s_gx_texCmprResident;
+
+static void gx_texstats_add(int texnum, int size, int cmprSize)
+{
+    s_gx_texsize[texnum] = size;
+    s_gx_texcmpr[texnum] = cmprSize;
+    s_gx_texResident += size;
+    s_gx_texCmprResident += cmprSize;
+    s_gx_texCount++;
+    if (s_gx_texResident > s_gx_texPeak)
+        s_gx_texPeak = s_gx_texResident;
+}
+
+static void gx_texstats_remove(int texnum)
+{
+    s_gx_texResident -= s_gx_texsize[texnum];
+    s_gx_texCmprResident -= s_gx_texcmpr[texnum];
+    s_gx_texsize[texnum] = 0;
+    s_gx_texcmpr[texnum] = 0;
+    if (s_gx_texCount > 0)
+        s_gx_texCount--;
+}
+#endif
+
 /* 16-bit swizzles: 4x4-texel tiles of 32 bytes; u16 per texel, native big-endian. */
 
 /* Nearest rounding, clamped: a plain >> biases every channel dark and costs RGB5A3's
@@ -381,12 +411,17 @@ static void gx_encode_level(void *dst, const void *src, int w, int h, u8 fmt)
         gx_swizzle_rgb565(dst, src, w, h);
 }
 
-/* The Xbox port's storage policy: picmip'd art and big 2D art compress. GX has no
- * DXT5, so alpha stays RGB5A3; builtins (*lightmap, *scratch...) stay 16-bit too. */
 static qboolean gx_want_cmpr(qboolean alpha, qboolean mipmap, int w, int h)
 {
-    /* 16-bit only until QGC-17 decides CMPR. */
+    /* CMPR off: Matt, QGC-17 (docs/MEMORY.md). */
     return qfalse;
+}
+
+#ifdef GC_DEBUG
+/* The Xbox port's storage policy: picmip'd art and big 2D art compress. GX has no
+ * DXT5, so alpha stays RGB5A3; builtins (*lightmap, *scratch...) stay 16-bit too. */
+static qboolean gx_cmpr_candidate(qboolean alpha, qboolean mipmap, int w, int h)
+{
     if (!s_gx_hintValid || alpha || w < 8 || h < 8)
         return qfalse;
     if (s_gx_hintName[0] == '*')
@@ -395,6 +430,7 @@ static qboolean gx_want_cmpr(qboolean alpha, qboolean mipmap, int w, int h)
         return qtrue;
     return !mipmap && w >= 256 && h >= 256;
 }
+#endif
 
 /* Does the GL internal format Upload32 chose carry alpha? */
 static qboolean gx_format_has_alpha(int glInternalFormat)
@@ -432,7 +468,13 @@ void GXBE_DeleteTexnum(int texnum)
     if (s_gx_texbufs[texnum]) {
         free(s_gx_texbufs[texnum]);
         s_gx_texbufs[texnum] = NULL;
+#ifdef GC_DEBUG
+        gx_texstats_remove(texnum);
+        if (s_gx_texCount == 0)
+            s_gx_texPeak = 0;
+#endif
     }
+    s_gx_texborrowed[texnum] = qfalse;
     s_gx_texobj_valid[texnum] = qfalse;
 
     /* Clear cached binding so the next use forces a re-load */
@@ -459,10 +501,17 @@ void GXBE_Upload32(unsigned *data, int width, int height,
     byte    *buf;
     u8       wrap_s, wrap_t, fmt;
     int      tmu;
-    qboolean alpha, cmpr;
+    qboolean alpha, cmpr, hintValid;
+#ifdef GC_DEBUG
+    qboolean cmprCandidate;
+#endif
 
     alpha = gx_format_has_alpha(glInternalFormat);
     cmpr  = gx_want_cmpr(alpha, mipmap, width, height);
+#ifdef GC_DEBUG
+    cmprCandidate = gx_cmpr_candidate(alpha, mipmap, width, height);
+#endif
+    hintValid = s_gx_hintValid;
     s_gx_hintValid = qfalse;
 
     if (texnum < 0 || texnum >= GX_MAX_TEXOBJS)
@@ -472,8 +521,12 @@ void GXBE_Upload32(unsigned *data, int width, int height,
     if (s_gx_texbufs[texnum]) {
         free(s_gx_texbufs[texnum]);
         s_gx_texbufs[texnum] = NULL;
-        s_gx_texobj_valid[texnum] = qfalse;
+#ifdef GC_DEBUG
+        gx_texstats_remove(texnum);
+#endif
     }
+    s_gx_texobj_valid[texnum] = qfalse;
+    s_gx_texborrowed[texnum] = qfalse;
 
     if (cmpr)
         fmt = GX_TF_CMPR;
@@ -496,10 +549,47 @@ void GXBE_Upload32(unsigned *data, int width, int height,
     /* GX texture data must be 32-byte aligned */
     buf = memalign(32, size);
     if (!buf) {
+        int defSlot = tr.defaultImage ? tr.defaultImage->texnum : -1;
+
+        if (defSlot >= 0 && defSlot != texnum && s_gx_texobj_valid[defSlot]) {
+            s_gx_texobjs[texnum] = s_gx_texobjs[defSlot];
+            s_gx_texobj_valid[texnum] = qtrue;
+            s_gx_texborrowed[texnum] = qtrue;
+
+            for (tmu = 0; tmu < 2; tmu++) {
+                if (gxState.boundtex[tmu] == texnum)
+                    GX_LoadTexObj(&s_gx_texobjs[texnum],
+                                  tmu == 0 ? GX_TEXMAP0 : GX_TEXMAP1);
+            }
+            if (hintValid)
+                ri.Printf(PRINT_WARNING, "GX texture %s: out of memory (%i bytes), using the default texture\n",
+                          s_gx_hintName, size);
+            else
+                ri.Printf(PRINT_WARNING, "GX texture texnum %i: out of memory (%i bytes), using the default texture\n",
+                          texnum, size);
+            return;
+        }
+
         ri.Printf(PRINT_WARNING, "GXBE_Upload32: memalign(%d) failed for texnum %d\n",
                   size, texnum);
         return;
     }
+
+#ifdef GC_DEBUG
+    {
+        int cmprSize = gx_cmpr_size(width, height);
+        int lw = width, lh = height;
+
+        if (mipmap) {
+            while (lw > 1 || lh > 1) {
+                lw = (lw > 1) ? (lw >> 1) : 1;
+                lh = (lh > 1) ? (lh >> 1) : 1;
+                cmprSize += gx_cmpr_size(lw, lh);
+            }
+        }
+        gx_texstats_add(texnum, size, cmprCandidate ? cmprSize : size);
+    }
+#endif
 
     /* Level 0, then box-reduce `data` in place for each successive level */
     gx_encode_level(buf, data, width, height, fmt);
@@ -564,12 +654,18 @@ void GXBE_TexSubImage2D(int texnum, int fullW, int fullH, const byte *data)
     if (texnum < 0 || texnum >= GX_MAX_TEXOBJS || !s_gx_texobj_valid[texnum])
         return;
 
+    if (s_gx_texborrowed[texnum])
+        return;
+
     size = gx_level_size(fullW, fullH, s_gx_texfmt[texnum]);
     buf  = s_gx_texbufs[texnum];
     if (!buf) {
         buf = memalign(32, size);
         if (!buf) return;
         s_gx_texbufs[texnum] = buf;
+#ifdef GC_DEBUG
+        gx_texstats_add(texnum, size, size);
+#endif
     }
 
     gx_encode_level(buf, data, fullW, fullH, s_gx_texfmt[texnum]);
@@ -670,3 +766,17 @@ void GXBE_ReadPixelsRGB(int x, int y, int w, int h, int padlen, byte *dst)
 
     free(buf);
 }
+
+#ifdef GC_DEBUG
+void GXBE_TexHeapReport(const char *where)
+{
+    struct mallinfo mi = mallinfo();
+
+    ri.Printf(PRINT_ALL,
+              "GC tex %s: resident %i bytes in %i textures, peak %i, cmpr-equivalent %i\n",
+              where, s_gx_texResident, s_gx_texCount, s_gx_texPeak, s_gx_texCmprResident);
+    ri.Printf(PRINT_ALL, "GC tex %s: malloc in use %u, malloc free %u, arena1 %u\n",
+              where, (unsigned int)mi.uordblks, (unsigned int)mi.fordblks,
+              (unsigned int)SYS_GetArena1Size());
+}
+#endif

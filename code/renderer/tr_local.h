@@ -1558,6 +1558,16 @@ void R_LoadPCX( const char *name, byte **pic, int *width, int *height );
 void R_LoadPNG( const char *name, byte **pic, int *width, int *height );
 void R_LoadTGA( const char *name, byte **pic, int *width, int *height );
 
+#ifdef HW_DOL
+void *R_ImageMalloc( int size );
+void  R_ImageFree( void *ptr );
+#define R_IMAGE_MALLOC( size )	R_ImageMalloc( size )
+#define R_IMAGE_FREE( ptr )		R_ImageFree( ptr )
+#else
+#define R_IMAGE_MALLOC( size )	ri.Malloc( size )
+#define R_IMAGE_FREE( ptr )		ri.Free( ptr )
+#endif
+
 /*
 =============================================================
 =============================================================

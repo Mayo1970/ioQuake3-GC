@@ -111,4 +111,8 @@ void     GXBE_Upload32(unsigned *data, int width, int height,
                        qboolean mipmap);
 void     GXBE_TexSubImage2D(int texnum, int fullW, int fullH, const byte *data);
 
+#ifdef GC_DEBUG
+void     GXBE_TexHeapReport(const char *where);
+#endif
+
 #endif /* TR_GX_H */
