@@ -505,16 +505,6 @@ void *QDECL Sys_LoadDll(const char *name, qboolean useSystemLib)
 	return NULL;
 }
 
-void *QDECL Sys_LoadGameDll(const char *name, intptr_t (QDECL **entryPoint)(int, ...),
-                            intptr_t (QDECL *systemcalls)(intptr_t, ...))
-{
-	return NULL;
-}
-
-void Sys_UnloadDll(void *dllHandle)
-{
-}
-
 void Sys_Print(const char *msg)
 {
 	fputs(msg, stdout);
