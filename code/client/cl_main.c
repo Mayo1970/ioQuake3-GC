@@ -3013,9 +3013,11 @@ void CL_Frame ( int msec ) {
 	// decide on the serverTime to render
 	CL_SetCGameTime();
 
+#ifndef HW_DOL
 	// push live player state to the Apple Watch companion (inert unless the
 	// watch_host cvar is set); after CL_SetCGameTime so cl.serverTime is current
 	CL_WatchLink_Frame();
+#endif
 
 	// update the screen
 	SCR_UpdateScreen();
@@ -3615,7 +3617,9 @@ void CL_Init( void ) {
 	Cvar_Get( "cl_guid", "", CVAR_USERINFO | CVAR_ROM );
 	CL_UpdateGUID( NULL, 0 );
 
+#ifndef HW_DOL
 	CL_WatchLink_Init();	// register watch_host / watch_port / watch_rate cvars
+#endif
 
 	Com_Printf( "----- Client Initialization Complete -----\n" );
 }

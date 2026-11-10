@@ -39,7 +39,7 @@ export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir))
 
 export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 
-export CFILES	:=	main.c shims.c sys_gc.c q_shared.c
+export CFILES	:=	main.c shims.c sys_gc.c gc_dvd.c q_shared.c
 export CPPFILES	:=
 
 export LD	:=	$(CC)

@@ -23,6 +23,11 @@
 #include "../qcommon/qcommon.h"
 
 #include "sys_gc.h"
+#include "gc_dvd.h"
+
+#ifndef GC_DISC_ID
+#define GC_DISC_ID "GQ3E"
+#endif
 
 #define GC_FAT_CACHE_PAGES 4
 #define GC_FAT_SECTORS_PER_PAGE 64
@@ -42,6 +47,9 @@ static gc_device_t gc_devices[GC_NUM_DEVICES] = {
 };
 
 static char gc_basepath[MAX_OSPATH];
+
+static qboolean gc_dvd_tried;
+static qboolean gc_dvd_mounted;
 
 #ifdef GC_DEBUG
 static FILE *gc_log;
@@ -130,6 +138,31 @@ qboolean GC_InitStorage(int argc, char **argv)
 		dev->mounted = qfalse;
 	}
 
+	if (!gc_dvd_tried) {
+		gc_dvd_tried = qtrue;
+		if (memcmp((const void *)0x80000000, GC_DISC_ID, 4) == 0)
+			gc_dvd_mounted = GC_DVD_Mount();
+	}
+
+	if (gc_dvd_mounted) {
+		Com_sprintf(path, sizeof(path), "dvd:/quake3");
+		if (stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+			strncpy(gc_basepath, path, sizeof(gc_basepath) - 1);
+			gc_basepath[sizeof(gc_basepath) - 1] = '\0';
+			/* dvd: is read-only; a failed chdir is harmless. */
+			chdir(gc_basepath);
+#ifdef GC_DEBUG
+			if (!gc_log) {
+				char logpath[MAX_OSPATH];
+				Com_sprintf(logpath, sizeof(logpath), "%s/gc_debug.log",
+				            gc_basepath);
+				gc_log = fopen(logpath, "w");
+			}
+#endif
+			return qtrue;
+		}
+	}
+
 	return qfalse;
 }
 
@@ -185,6 +218,22 @@ void Sys_Init(void)
 {
 	Cvar_Set("arch", OS_STRING " " ARCH_STRING);
 	Com_Printf("CPU: Gekko (PowerPC 750CXe), 24 MB main memory\n");
+}
+
+void Sys_GLimpInit(void)
+{
+}
+
+void Sys_GLimpSafeInit(void)
+{
+}
+
+void Sys_PlatformInit(void)
+{
+}
+
+void Sys_PlatformExit(void)
+{
 }
 
 cpuFeatures_t Sys_GetProcessorFeatures(void)
@@ -399,6 +448,11 @@ qboolean Sys_Mkdir(const char *path)
 	return mkdir(path, 0777) == 0 || errno == EEXIST;
 }
 
+mode_t umask(mode_t mask)
+{
+	return 0;
+}
+
 FILE *Sys_Mkfifo(const char *ospath)
 {
 	return NULL;
@@ -465,6 +519,7 @@ void Sys_Print(const char *msg)
 {
 	fputs(msg, stdout);
 #ifdef GC_DEBUG
+	SYS_Report("%s", msg);
 	if (gc_log) {
 		fputs(msg, gc_log);
 		fflush(gc_log);
@@ -488,6 +543,7 @@ void QDECL Sys_Error(const char *error, ...)
 	printf("===================\nPress START to exit.\n");
 
 #ifdef GC_DEBUG
+	SYS_Report("%s\n", buf);
 	if (gc_log) {
 		fprintf(gc_log, "Sys_Error: %s\n", buf);
 		fflush(gc_log);
