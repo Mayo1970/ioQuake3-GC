@@ -270,3 +270,25 @@ q3tourney6: the log stops about 30 s after the map load and the match does not r
 | 426016 | `svs.snapshotEntities` (8 clients x 4 x 64 entities) |
 | 282656 | botlib console message heap (`max_messages` 1024) |
 | about 1.5 MB | botlib AAS lumps |
+
+## 10. Stock 24 MB gate (QGC-14, M4)
+
+`main` at `75264e6`, `DEBUG=1`, no `GC_MEM1_MB`. Headless Dolphin 5.0-17995, stock memory (24 MB MEM1, 16 MB ARAM), no RAM override.
+Null renderer, null sound, `g_gametype 0`, `timelimit 5`, map q3dm1, 4 bots (`addbot sarge/anarki/visor/doom 2`), `status` and `meminfo` every 300 frames.
+
+Result: the match runs to "Timelimit hit." (5 minutes of game time, about 5 min 14 s of log time after the map load). No error. All 4 bots score frags.
+
+| Line | Bytes | MB |
+|---|---:|---:|
+| boot Arena1 | 15704064 | 14.98 |
+| hunk (`com_hunkMegs 8` clamped) | 6291456 | 6.00 |
+| Arena1 after `Com_Init` | 5398528 | 5.15 |
+| Arena1 after the map load | 5251072 | 5.01 |
+| reserve (`GC_HUNK_RESERVE`: textures 3.00 + sound 1.50 + GX FIFO 0.25) | 4980736 | 4.75 |
+| margin over the reserve | 270336 | 0.26 |
+| hunk peak (load and play) | 3226464 of 6291456 | 3.08 |
+| zone peak | 2401748 of 3145728 | 2.29 |
+| small zone peak | 58720 of 524288 | 0.06 |
+
+Zone in use grows from 1936236 bytes after the load to 2068668 bytes at the time limit; it stays under the load peak.
+One XFB is already inside the measured use: `GC_InitConsole` (`sys_gc.c`) allocates it before the boot line. The reserve does not hold the second XFB of the section 5 target (0.59 MB NTSC).
