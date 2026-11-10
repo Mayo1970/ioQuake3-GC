@@ -42,10 +42,10 @@ int demo_protocols[] =
 
 #define MIN_DEDICATED_COMHUNKMEGS 1
 #ifdef HW_DOL
-/* Provisional values; QGC-13 sets the final ones. */
-#define MIN_COMHUNKMEGS		8
-#define DEF_COMHUNKMEGS 	24
-#define DEF_COMZONEMEGS		12
+/* QGC-13 sizes: hunk peak 4.9 MB, zone peak 2.65 MB with 4 bots, null renderer (docs/MEMORY.md). */
+#define MIN_COMHUNKMEGS		6
+#define DEF_COMHUNKMEGS 	8
+#define DEF_COMZONEMEGS		3
 /* Free MEM1 kept out of the hunk: textures 3.00 + sound 1.50 + GX FIFO 0.25 MB (docs/MEMORY.md, section 5). */
 #define GC_HUNK_RESERVE		(4980736)
 /* malloc header and the hunk's 31-byte alignment pad. */

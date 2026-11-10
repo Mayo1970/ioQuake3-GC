@@ -827,6 +827,9 @@ void		Com_GameRestart(int checksumFeed, qboolean disconnect);
 
 int			Com_Milliseconds( void );	// will be journaled properly
 unsigned	Com_BlockChecksum( const void *buffer, int length );
+#ifdef HW_DOL
+unsigned	Com_FileChecksum( fileHandle_t f, int length );
+#endif
 char		*Com_MD5File(const char *filename, int length, const char *prefix, int prefix_len);
 int			Com_Filter(char *filter, char *name, int casesensitive);
 int			Com_FilterPath(char *filter, char *name, int casesensitive);
