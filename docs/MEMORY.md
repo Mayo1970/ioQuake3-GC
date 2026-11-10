@@ -162,7 +162,7 @@ Bytes from release `powerpc-eabi-nm -S`; `cin` disappears as a symbol once it mo
 |---|---|---|---:|---:|---:|
 | `s_rawsamples` | client/snd_dma.c | `MAX_RAW_STREAMS` 129 -> 1 | 16908288 | 131072 | 16777216 |
 | `s_rawend` | client/snd_dma.c | `MAX_RAW_STREAMS` 129 -> 1 | 516 | 4 | 512 |
-| `cls` | client/cl_main.c | `MAX_GLOBAL_SERVERS` 4096 -> 256, `MAX_SERVERSTATUSREQUESTS` 16 -> 4 | 893132 | 109772 | 783360 |
+| `cls` | client/cl_main.c | `MAX_GLOBAL_SERVERS` 4096 -> 256 | 893132 | 109772 | 783360 |
 | `cl_serverStatusList` | client/cl_main.c | `MAX_SERVERSTATUSREQUESTS` 16 -> 4 | 131904 | 32976 | 98928 |
 | `buckets` | server/sv_main.c | `MAX_BUCKETS` 16384 -> 1024 | 655360 | 40960 | 614400 |
 | `cvar_indexes` | qcommon/cvar.c | `MAX_CVARS` 2048 -> 1024 | 147456 | 73728 | 73728 |
@@ -200,16 +200,17 @@ Bytes from release `powerpc-eabi-nm -S`; `cin` disappears as a symbol once it mo
 | 5 | `s_knownSfx` | 393216 | 384.0 |
 | 6 | `sv` | 312388 | 305.1 |
 | 7 | `memoryPool` | 262144 | 256.0 |
-| 8 | `__EH_FRAME_BEGIN__` | 212692 | 207.7 |
-| 9 | `clc` | 173628 | 169.6 |
-| 10 | `cgs` | 153812 | 150.2 |
-| 11 | `cg_localEntities` | 149504 | 146.0 |
-| 12 | `s_rawsamples` | 131072 | 128.0 |
-| 13 | `memoryPool` | 131072 | 128.0 |
-| 14 | `particles` | 126976 | 124.0 |
-| 15 | `svs` | 122976 | 120.1 |
-| 16 | `cg` | 117004 | 114.3 |
-| 17 | `cls` | 109772 | 107.2 |
-| 18 | `g_globalserverlist` | 97280 | 95.0 |
-| 19 | `cvar_indexes` | 73728 | 72.0 |
-| 20 | `cg_markPolys` | 73728 | 72.0 |
+| 8 | `clc` | 173628 | 169.6 |
+| 9 | `cgs` | 153812 | 150.2 |
+| 10 | `cg_localEntities` | 149504 | 146.0 |
+| 11 | `s_rawsamples` | 131072 | 128.0 |
+| 12 | `memoryPool` | 131072 | 128.0 |
+| 13 | `particles` | 126976 | 124.0 |
+| 14 | `svs` | 122976 | 120.1 |
+| 15 | `cg` | 117004 | 114.3 |
+| 16 | `cls` | 109772 | 107.2 |
+| 17 | `g_globalserverlist` | 97280 | 95.0 |
+| 18 | `cvar_indexes` | 73728 | 72.0 |
+| 19 | `cg_markPolys` | 73728 | 72.0 |
+| 20 | `con` | 65608 | 64.1 |
+
