@@ -38,6 +38,8 @@ void *R_ImageMalloc( int size ) {
 void R_ImageFree( void *ptr ) {
 	free( ptr );
 }
+
+int r_gcJpgMaxDim;
 #endif
 
 static byte			 s_intensitytable[256];
@@ -1050,7 +1052,14 @@ image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmi
 	//
 	// load the pic from disk
 	//
+#ifdef HW_DOL
+	/* Smallest decode size that still gives the same uploaded size after picmip and the size cap. */
+	r_gcJpgMaxDim = allowPicmip ? ( glConfig.maxTextureSize << r_picmip->integer ) : glConfig.maxTextureSize;
+#endif
 	R_LoadImage( name, &pic, &width, &height );
+#ifdef HW_DOL
+	r_gcJpgMaxDim = 0;
+#endif
 	if ( pic == NULL ) {
 		return NULL;
 	}

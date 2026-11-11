@@ -143,6 +143,19 @@ void R_LoadJPG(const char *filename, unsigned char **pic, int *width, int *heigh
    */
   cinfo.out_color_space = JCS_RGB;
 
+#ifdef HW_DOL
+  /* Matt, QGC-47: decode big JPGs smaller; Upload32 would scale them to the cap anyway. */
+  if ( r_gcJpgMaxDim > 0 ) {
+    unsigned int maxSide = cinfo.image_width > cinfo.image_height ? cinfo.image_width : cinfo.image_height;
+    unsigned int denom = 1;
+
+    while ( denom < 8 && maxSide / ( denom * 2 ) >= (unsigned int)r_gcJpgMaxDim )
+      denom *= 2;
+    cinfo.scale_num = 1;
+    cinfo.scale_denom = denom;
+  }
+#endif
+
   /* Step 5: Start decompressor */
 
   (void) jpeg_start_decompress(&cinfo);
