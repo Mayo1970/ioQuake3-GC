@@ -1917,6 +1917,19 @@ void FS_FreeFile( void *buffer ) {
 	}
 }
 
+#ifdef HW_DOL
+/* Keeps FS_FreeFile from clearing temp memory that a caller still holds (QGC-46). */
+void FS_HoldTempMemory( void ) {
+	fs_loadStack++;
+}
+
+void FS_ReleaseTempMemory( void ) {
+	if ( fs_loadStack > 0 ) {
+		fs_loadStack--;
+	}
+}
+#endif
+
 /*
 ============
 FS_WriteFile

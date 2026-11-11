@@ -40,11 +40,16 @@ static	byte		*fileBase;
 static	fileHandle_t	s_bspFile;
 static	int				s_bspPos;
 static	int				s_bspLength;
+static	qboolean		s_bspHold;
 
 static void R_BspClose( void ) {
 	if ( s_bspFile ) {
 		FS_FCloseFile( s_bspFile );
 		s_bspFile = 0;
+	}
+	if ( s_bspHold ) {
+		FS_ReleaseTempMemory();
+		s_bspHold = qfalse;
 	}
 }
 
@@ -1890,11 +1895,14 @@ void RE_LoadWorldMap( const char *name ) {
 
 	// load it
 #ifdef HW_DOL
+	R_BspClose();
 	s_bspLength = FS_FOpenFileRead( name, &s_bspFile, qtrue );
 	if ( !s_bspFile || s_bspLength <= 0 ) {
 		R_BspClose();
 		ri.Error (ERR_DROP, "RE_LoadWorldMap: %s not found", name);
 	}
+	FS_HoldTempMemory();
+	s_bspHold = qtrue;
 #else
     ri.FS_ReadFile( name, &buffer.v );
 	if ( !buffer.b ) {
