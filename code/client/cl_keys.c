@@ -292,6 +292,10 @@ keyname_t keynames[] =
 	{NULL,0}
 };
 
+#ifdef HW_DOL
+static int gc_keynames_raw = 0;
+#endif
+
 /*
 =============================================================================
 
@@ -849,6 +853,16 @@ char *Key_KeynumToString( int keynum ) {
 		return tinystr;
 	}
 
+#ifdef HW_DOL
+	/* Friendly pad names in the menus; the config writer asks for canonical JOYn. */
+	if ( !gc_keynames_raw && keynum >= K_JOY1 && keynum <= K_JOY8 ) {
+		static char *gc_names[] = {
+			"A", "B", "X", "Y", "Z", "START", "L", "R"
+		};
+		return gc_names[keynum - K_JOY1];
+	}
+#endif
+
 	// check for a key string
 	for ( kn=keynames ; kn->name ; kn++ ) {
 		if (keynum == kn->keynum) {
@@ -1023,6 +1037,9 @@ void Key_WriteBindings( fileHandle_t f ) {
 
 	FS_Printf (f, "unbindall\n" );
 
+#ifdef HW_DOL
+	gc_keynames_raw = 1;
+#endif
 	for (i=0 ; i<MAX_KEYS ; i++) {
 		if (keys[i].binding && keys[i].binding[0] ) {
 			FS_Printf (f, "bind %s \"%s\"\n", Key_KeynumToString(i), keys[i].binding);
@@ -1030,6 +1047,9 @@ void Key_WriteBindings( fileHandle_t f ) {
 		}
 
 	}
+#ifdef HW_DOL
+	gc_keynames_raw = 0;
+#endif
 }
 
 

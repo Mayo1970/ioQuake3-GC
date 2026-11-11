@@ -48,9 +48,7 @@ CLIENT_OBJ	:=	$(addprefix code/client/,cl_avi.o cl_cgame.o cl_cin.o \
 			snd_mix.o snd_adpcm.o snd_wavelet.o snd_codec.o \
 			snd_codec_wav.o)
 
-NULL_OBJ	:=	code/null/null_input.o
-
-SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o sys_gc.o gc_dvd.o gc_aram.o \
+SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o gc_input.o sys_gc.o gc_dvd.o gc_aram.o \
 			gc_glimp.o gc_null_snddma.o gc_net_null.o gc_modules.o)
 
 RENDERER_OBJ	:=	$(addprefix code/renderer/,tr_animation.o \
@@ -139,7 +137,7 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 export LD	:=	$(CC)
 
 export OFILES	:=	$(QCOMMON_OBJ) $(SERVER_OBJ) $(BOTLIB_OBJ) \
-			$(CLIENT_OBJ) $(NULL_OBJ) $(SYS_OBJ) $(ZLIB_OBJ) \
+			$(CLIENT_OBJ) $(SYS_OBJ) $(ZLIB_OBJ) \
 			$(RENDERER_OBJ) $(JPEG_OBJ) $(MODULE_OBJS)
 
 export BOTLIB_OBJ
