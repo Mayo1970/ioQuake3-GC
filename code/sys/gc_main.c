@@ -10,8 +10,8 @@
 #include <ogc/system.h>
 #endif
 
-/* libogc's 128 KB main stack overflows in map load; 512 KB as in the Wii port. */
-static unsigned char s_gcMainStack[512 * 1024] __attribute__((aligned(8)));
+/* libogc's 128 KB main stack overflows in map load; 448 KB: measured peak 369816 bytes (Matt, QGC-47). */
+static unsigned char s_gcMainStack[448 * 1024] __attribute__((aligned(8)));
 void *__ppc_main_sp __attribute__((section(".sdata"))) = &s_gcMainStack[sizeof(s_gcMainStack)];
 
 #ifdef GC_DEBUG

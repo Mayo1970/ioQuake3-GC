@@ -46,8 +46,8 @@ int demo_protocols[] =
 #define MIN_COMHUNKMEGS		6
 #define DEF_COMHUNKMEGS 	8
 #define DEF_COMZONEMEGS		3
-/* Free MEM1 kept out of the hunk: textures 3.00 + sound 1.50 + GX FIFO 0.25 MB (docs/MEMORY.md, section 5). */
-#define GC_HUNK_RESERVE		(4980736)
+/* Free MEM1 kept out of the hunk: textures 2.25 + GX FIFO 0.25 MB (Matt, QGC-47; sound budget is QGC-21/22). */
+#define GC_HUNK_RESERVE		(2621440)
 /* malloc header and the hunk's 31-byte alignment pad. */
 #define GC_HUNK_SLACK		(65536)
 #else
