@@ -235,7 +235,11 @@ RB_SurfaceTriangles
 */
 static void RB_SurfaceTriangles( srfTriangles_t *srf ) {
 	int			i;
+#ifdef HW_DOL
+	gcWorldVert_t	*dv;
+#else
 	drawVert_t	*dv;
+#endif
 	float		*xyz, *normal, *texCoords;
 	byte		*color;
 	int			dlightBits;
@@ -266,16 +270,27 @@ static void RB_SurfaceTriangles( srfTriangles_t *srf ) {
 		xyz[2] = dv->xyz[2];
 
 		if ( needsNormal ) {
+#ifdef HW_DOL
+			normal[0] = dv->normal[0] / GC_NORMAL_SCALE;
+			normal[1] = dv->normal[1] / GC_NORMAL_SCALE;
+			normal[2] = dv->normal[2] / GC_NORMAL_SCALE;
+#else
 			normal[0] = dv->normal[0];
 			normal[1] = dv->normal[1];
 			normal[2] = dv->normal[2];
+#endif
 		}
 
 		texCoords[0] = dv->st[0];
 		texCoords[1] = dv->st[1];
 
+#ifdef HW_DOL
+		texCoords[2] = dv->lightmap[0] / GC_LM_SCALE;
+		texCoords[3] = dv->lightmap[1] / GC_LM_SCALE;
+#else
 		texCoords[2] = dv->lightmap[0];
 		texCoords[3] = dv->lightmap[1];
+#endif
 
 		*(int *)color = *(int *)dv->color;
 	}
@@ -956,7 +971,12 @@ RB_SurfaceFace
 */
 static void RB_SurfaceFace( srfSurfaceFace_t *surf ) {
 	int			i;
-	unsigned	*indices, *tessIndexes;
+#ifdef HW_DOL
+	unsigned short	*indices;
+#else
+	unsigned	*indices;
+#endif
+	unsigned	*tessIndexes;
 	float		*v;
 	float		*normal;
 	int			ndx;
@@ -969,7 +989,11 @@ static void RB_SurfaceFace( srfSurfaceFace_t *surf ) {
 	dlightBits = surf->dlightBits[backEnd.smpFrame];
 	tess.dlightBits |= dlightBits;
 
+#ifdef HW_DOL
+	indices = (unsigned short *)( ( ( char  * ) surf ) + surf->ofsIndices );
+#else
 	indices = ( unsigned * ) ( ( ( char  * ) surf ) + surf->ofsIndices );
+#endif
 
 	Bob = tess.numVertexes;
 	tessIndexes = tess.indexes + tess.numIndexes;
@@ -992,9 +1016,15 @@ static void RB_SurfaceFace( srfSurfaceFace_t *surf ) {
 		VectorCopy( v, tess.xyz[ndx]);
 		tess.texCoords[ndx][0][0] = v[3];
 		tess.texCoords[ndx][0][1] = v[4];
+#ifdef HW_DOL
+		tess.texCoords[ndx][1][0] = ((unsigned short *)&v[5])[0] / GC_LM_SCALE;
+		tess.texCoords[ndx][1][1] = ((unsigned short *)&v[5])[1] / GC_LM_SCALE;
+		* ( unsigned int * ) &tess.vertexColors[ndx] = * ( unsigned int * ) &v[6];
+#else
 		tess.texCoords[ndx][1][0] = v[5];
 		tess.texCoords[ndx][1][1] = v[6];
 		* ( unsigned int * ) &tess.vertexColors[ndx] = * ( unsigned int * ) &v[7];
+#endif
 		tess.vertexDlightBits[ndx] = dlightBits;
 	}
 
@@ -1046,7 +1076,11 @@ static void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 	float	*texCoords;
 	float	*normal;
 	unsigned char *color;
+#ifdef HW_DOL
+	gcWorldVert_t	*dv;
+#else
 	drawVert_t	*dv;
+#endif
 	int		rows, irows, vrows;
 	int		used;
 	int		widthTable[MAX_GRID_SIZE];
@@ -1135,12 +1169,23 @@ static void RB_SurfaceGrid( srfGridMesh_t *cv ) {
 				xyz[2] = dv->xyz[2];
 				texCoords[0] = dv->st[0];
 				texCoords[1] = dv->st[1];
+#ifdef HW_DOL
+				texCoords[2] = dv->lightmap[0] / GC_LM_SCALE;
+				texCoords[3] = dv->lightmap[1] / GC_LM_SCALE;
+#else
 				texCoords[2] = dv->lightmap[0];
 				texCoords[3] = dv->lightmap[1];
+#endif
 				if ( needsNormal ) {
+#ifdef HW_DOL
+					normal[0] = dv->normal[0] / GC_NORMAL_SCALE;
+					normal[1] = dv->normal[1] / GC_NORMAL_SCALE;
+					normal[2] = dv->normal[2] / GC_NORMAL_SCALE;
+#else
 					normal[0] = dv->normal[0];
 					normal[1] = dv->normal[1];
 					normal[2] = dv->normal[2];
+#endif
 				}
 				* ( unsigned int * ) color = * ( unsigned int * ) dv->color;
 				*vDlightBits++ = dlightBits;

@@ -266,11 +266,20 @@ int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projectio
 	int				numClipPoints;
 	float			*v;
 	srfGridMesh_t	*cv;
+#ifdef HW_DOL
+	gcWorldVert_t	*dv;
+#else
 	drawVert_t		*dv;
+#endif
 	vec3_t			normal;
 	vec3_t			projectionDir;
 	vec3_t			v1, v2;
+#ifdef HW_DOL
+	vec3_t			vn;
+	unsigned short	*indexes;
+#else
 	int				*indexes;
+#endif
 
 	if (numPoints <= 0) {
 		return 0;
@@ -353,11 +362,26 @@ int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projectio
 					dv = cv->verts + m * cv->width + n;
 
 					VectorCopy(dv[0].xyz, clipPoints[0][0]);
+#ifdef HW_DOL
+					VectorSet(vn, dv[0].normal[0] / GC_NORMAL_SCALE, dv[0].normal[1] / GC_NORMAL_SCALE, dv[0].normal[2] / GC_NORMAL_SCALE);
+					VectorMA(clipPoints[0][0], MARKER_OFFSET, vn, clipPoints[0][0]);
+#else
 					VectorMA(clipPoints[0][0], MARKER_OFFSET, dv[0].normal, clipPoints[0][0]);
+#endif
 					VectorCopy(dv[cv->width].xyz, clipPoints[0][1]);
+#ifdef HW_DOL
+					VectorSet(vn, dv[cv->width].normal[0] / GC_NORMAL_SCALE, dv[cv->width].normal[1] / GC_NORMAL_SCALE, dv[cv->width].normal[2] / GC_NORMAL_SCALE);
+					VectorMA(clipPoints[0][1], MARKER_OFFSET, vn, clipPoints[0][1]);
+#else
 					VectorMA(clipPoints[0][1], MARKER_OFFSET, dv[cv->width].normal, clipPoints[0][1]);
+#endif
 					VectorCopy(dv[1].xyz, clipPoints[0][2]);
+#ifdef HW_DOL
+					VectorSet(vn, dv[1].normal[0] / GC_NORMAL_SCALE, dv[1].normal[1] / GC_NORMAL_SCALE, dv[1].normal[2] / GC_NORMAL_SCALE);
+					VectorMA(clipPoints[0][2], MARKER_OFFSET, vn, clipPoints[0][2]);
+#else
 					VectorMA(clipPoints[0][2], MARKER_OFFSET, dv[1].normal, clipPoints[0][2]);
+#endif
 					// check the normal of this triangle
 					VectorSubtract(clipPoints[0][0], clipPoints[0][1], v1);
 					VectorSubtract(clipPoints[0][2], clipPoints[0][1], v2);
@@ -377,11 +401,26 @@ int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projectio
 					}
 
 					VectorCopy(dv[1].xyz, clipPoints[0][0]);
+#ifdef HW_DOL
+					VectorSet(vn, dv[1].normal[0] / GC_NORMAL_SCALE, dv[1].normal[1] / GC_NORMAL_SCALE, dv[1].normal[2] / GC_NORMAL_SCALE);
+					VectorMA(clipPoints[0][0], MARKER_OFFSET, vn, clipPoints[0][0]);
+#else
 					VectorMA(clipPoints[0][0], MARKER_OFFSET, dv[1].normal, clipPoints[0][0]);
+#endif
 					VectorCopy(dv[cv->width].xyz, clipPoints[0][1]);
+#ifdef HW_DOL
+					VectorSet(vn, dv[cv->width].normal[0] / GC_NORMAL_SCALE, dv[cv->width].normal[1] / GC_NORMAL_SCALE, dv[cv->width].normal[2] / GC_NORMAL_SCALE);
+					VectorMA(clipPoints[0][1], MARKER_OFFSET, vn, clipPoints[0][1]);
+#else
 					VectorMA(clipPoints[0][1], MARKER_OFFSET, dv[cv->width].normal, clipPoints[0][1]);
+#endif
 					VectorCopy(dv[cv->width+1].xyz, clipPoints[0][2]);
+#ifdef HW_DOL
+					VectorSet(vn, dv[cv->width+1].normal[0] / GC_NORMAL_SCALE, dv[cv->width+1].normal[1] / GC_NORMAL_SCALE, dv[cv->width+1].normal[2] / GC_NORMAL_SCALE);
+					VectorMA(clipPoints[0][2], MARKER_OFFSET, vn, clipPoints[0][2]);
+#else
 					VectorMA(clipPoints[0][2], MARKER_OFFSET, dv[cv->width+1].normal, clipPoints[0][2]);
+#endif
 					// check the normal of this triangle
 					VectorSubtract(clipPoints[0][0], clipPoints[0][1], v1);
 					VectorSubtract(clipPoints[0][2], clipPoints[0][1], v2);
@@ -411,7 +450,11 @@ int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projectio
 				continue;
 			}
 
+#ifdef HW_DOL
+			indexes = (unsigned short *)( (byte *)surf + surf->ofsIndices );
+#else
 			indexes = (int *)( (byte *)surf + surf->ofsIndices );
+#endif
 			for ( k = 0 ; k < surf->numIndices ; k += 3 ) {
 				for ( j = 0 ; j < 3 ; j++ ) {
 					v = surf->points[0] + VERTEXSIZE * indexes[k+j];;
@@ -438,7 +481,14 @@ int R_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projectio
 				for(j = 0; j < 3; j++)
 				{
 					v = surf->verts[surf->indexes[k + j]].xyz;
+#ifdef HW_DOL
+					VectorSet(vn, surf->verts[surf->indexes[k + j]].normal[0] / GC_NORMAL_SCALE,
+						surf->verts[surf->indexes[k + j]].normal[1] / GC_NORMAL_SCALE,
+						surf->verts[surf->indexes[k + j]].normal[2] / GC_NORMAL_SCALE);
+					VectorMA(v, MARKER_OFFSET, vn, clipPoints[0][j]);
+#else
 					VectorMA(v, MARKER_OFFSET, surf->verts[surf->indexes[k + j]].normal, clipPoints[0][j]);
+#endif
 				}
 
 				// add the fragments of this face
