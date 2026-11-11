@@ -50,7 +50,7 @@ CLIENT_OBJ	:=	$(addprefix code/client/,cl_avi.o cl_cgame.o cl_cin.o \
 
 NULL_OBJ	:=	code/null/null_input.o
 
-SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o sys_gc.o gc_dvd.o \
+SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o sys_gc.o gc_dvd.o gc_aram.o \
 			gc_glimp.o gc_null_snddma.o gc_net_null.o gc_modules.o)
 
 RENDERER_OBJ	:=	$(addprefix code/renderer/,tr_animation.o \

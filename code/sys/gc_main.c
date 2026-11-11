@@ -4,6 +4,7 @@
 
 #include "sys_local.h"
 #include "sys_gc.h"
+#include "gc_aram.h"
 
 #ifdef GC_DEBUG
 #include <ogc/system.h>
@@ -19,6 +20,8 @@ int main(int argc, char **argv)
 	int i;
 
 	GC_WaitForStorage(argc, argv);
+
+	GC_ARAM_Init();
 
 	Sys_Milliseconds();
 

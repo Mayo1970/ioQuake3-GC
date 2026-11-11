@@ -817,6 +817,10 @@ void		R_ModelBounds( qhandle_t handle, vec3_t mins, vec3_t maxs );
 
 void		R_Modellist_f (void);
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+void		R_MD3AramReport( const char *where );
+#endif
+
 //====================================================
 extern	refimport_t		ri;
 
