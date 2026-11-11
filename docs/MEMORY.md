@@ -453,3 +453,49 @@ With all 3 LODs, the model part has 899424 bytes left: a fifth player set (about
 | delta | +5792 | +1032 | +256 | +7080 |
 
 Runtime adds two 8000-byte frame buffers (first MD3 draw) and a 32 KB staging buffer during each MD3 load (freed after it).
+
+## 15. Renderer hunk diet (QGC-46)
+
+### Cuts (Matt, 2026-11-11)
+
+| Cut | Where | Before | After | Delta |
+|---|---|---:|---:|---:|
+| One MD3 LOD (LOD 0 only) | player models on the hunk, 4 sets | 1276608 | 444576 | -832032 |
+| | model ARAM, q3dm1 | 9586336 | 4057440 | -5528896 |
+| `MAX_DRAWSURFS` 0x10000 to 0x4000, `MAX_RENDER_COMMANDS` 0x40000 to 0x20000 | `R_Init` hunk (`backEndData`) | 1684768 | 1160480 | -524288 |
+| | BSS (`scratch` in `R_RadixSort`, `tr_main.c`) | 524288 | 131072 | -393216 |
+| World BSP read lump by lump | load temp, q3dm1 (surfaces + verts + indexes) | 1906720 | 939208 | -967512 |
+| | load temp, q3dm6 (surfaces + verts + indexes) | 4408224 | 1845472 | -2562752 |
+| | load temp, q3dm17 (light grid) | 2286388 | 1065612 | -1220776 |
+
+Not taken: shader script text with comments and whitespace stripped (591040 to about 423000 bytes).
+
+### How it works
+
+- `R_RegisterMD3` loads only `<name>.md3` on `HW_DOL`; `R_ComputeLOD` then always picks LOD 0 (`numLods` 1).
+- `MAX_RENDER_COMMANDS` stays at 128 KB because a full console is about 94 KB of 40-byte stretch-pic commands.
+- `RE_LoadWorldMap` opens the BSP with `FS_FOpenFileRead` and reads the lumps of one loader into one temp block, then frees it. The upstream loader order stays; a backward seek in a pk3 inflates the file again from its start.
+- `FS_FreeFile` clears all hunk temp memory when its open-file count reaches 0. `FS_HoldTempMemory`/`FS_ReleaseTempMemory` (`files.c`) hold the count during the world load, or a texture freed inside `R_LoadSurfaces` wipes the live lump block.
+- Debug builds add `GC backend peak: drawsurfs <n> of <max>, commands <n> of <max>` to `gc_texmem`.
+
+### Result
+
+`DEBUG=1 GC_MEM1_MB=64`, Dolphin 5.0-17995 with a 64 MB MEM1 override, `com_hunkMegs 24`, `devmap <map>`, 4 bots (sarge, anarki, visor, doom), `cg_thirdPerson 1`.
+Before is `main` 8719785 with the same setup.
+
+| Map | Hunk peak before | Hunk peak after | Delta | Drawsurfs peak | Commands peak |
+|---|---:|---:|---:|---:|---:|
+| q3dm1 | 10515000 | 8612920 | -1902080 | 683 | 20172 |
+| q3dm6 | 16380224 | 12297816 | -4082408 | 356 | 11652 |
+| q3dm17 | 10403252 | 8404248 | -1999004 | 778 | 20172 |
+
+All three maps load, the 4 bots join and score, no error. Frame dumps show the world, player models, HUD and scoreboard as before.
+Renderer world data is unchanged (q3dm1 1730720, q3dm6 3732032, q3dm17 1908000). `CL_InitCGame` took 87.8 / 93.9 / 79.7 s against 92.4 / 99.3 / 84.6 s before (Dolphin, not hardware).
+
+### Binary size (release)
+
+| | text | data | bss | dec |
+|---|---:|---:|---:|---:|
+| before (main 8719785) | 1924240 | 491648 | 8231040 | 10646928 |
+| QGC-46 | 1925872 | 492156 | 7837824 | 10255852 |
+| delta | +1632 | +508 | -393216 | -391076 |
