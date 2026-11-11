@@ -517,6 +517,11 @@ static qboolean R_LoadMD3 (model_t *mod, int lod, void *buffer, const char *mod_
 					mod_name, SHADER_MAX_VERTEXES, verts );
 				return qfalse;
 			}
+			if ( LittleLong( fsurf->numTriangles ) * 3 > SHADER_MAX_INDEXES ) {
+				ri.Printf( PRINT_WARNING, "R_LoadMD3: %s has more than %i triangles on a surface (%i).\n",
+					mod_name, SHADER_MAX_INDEXES / 3, LittleLong( fsurf->numTriangles ) );
+				return qfalse;
+			}
 			if ( surfOfsXyz + verts * frames * 8 != surfOfsEnd ||
 				ofsTriangles >= surfOfsXyz || ofsShaders >= surfOfsXyz || ofsSt >= surfOfsXyz ||
 				frames != numFrames ) {
