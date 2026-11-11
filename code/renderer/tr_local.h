@@ -581,6 +581,67 @@ typedef struct srfFlare_s {
 	vec3_t			color;
 } srfFlare_t;
 
+#ifdef HW_DOL
+/* Packed world vertex, 32 bytes (Matt, QGC-48): lightmap u16 in [0,1], normal s8 in [-1,1]. */
+typedef struct {
+	vec3_t			xyz;
+	float			st[2];
+	unsigned short	lightmap[2];
+	signed char		normal[3];
+	byte			pad;
+	byte			color[4];
+} gcWorldVert_t;
+
+typedef char gcWorldVert_size_check[ sizeof( gcWorldVert_t ) == 32 ? 1 : -1 ];
+
+#define GC_LM_SCALE		65535.0f
+#define GC_NORMAL_SCALE	127.0f
+
+static ID_INLINE void R_GCPackWorldVert( const drawVert_t *in, gcWorldVert_t *out ) {
+	int		i;
+	float	v;
+
+	for ( i = 0 ; i < 3 ; i++ ) {
+		out->xyz[i] = in->xyz[i];
+	}
+	for ( i = 0 ; i < 2 ; i++ ) {
+		out->st[i] = in->st[i];
+	}
+	for ( i = 0 ; i < 2 ; i++ ) {
+		v = in->lightmap[i];
+		if ( v < 0.0f ) v = 0.0f;
+		if ( v > 1.0f ) v = 1.0f;
+		out->lightmap[i] = (unsigned short)( v * GC_LM_SCALE + 0.5f );
+	}
+	for ( i = 0 ; i < 3 ; i++ ) {
+		v = in->normal[i];
+		if ( v < -1.0f ) v = -1.0f;
+		if ( v > 1.0f ) v = 1.0f;
+		out->normal[i] = (signed char)( v * GC_NORMAL_SCALE + ( v >= 0.0f ? 0.5f : -0.5f ) );
+	}
+	out->pad = 0;
+	for ( i = 0 ; i < 4 ; i++ ) {
+		out->color[i] = in->color[i];
+	}
+}
+
+static ID_INLINE void R_GCUnpackWorldVert( const gcWorldVert_t *in, drawVert_t *out ) {
+	int		i;
+
+	for ( i = 0 ; i < 3 ; i++ ) {
+		out->xyz[i] = in->xyz[i];
+		out->normal[i] = in->normal[i] / GC_NORMAL_SCALE;
+	}
+	for ( i = 0 ; i < 2 ; i++ ) {
+		out->st[i] = in->st[i];
+		out->lightmap[i] = in->lightmap[i] / GC_LM_SCALE;
+	}
+	for ( i = 0 ; i < 4 ; i++ ) {
+		out->color[i] = in->color[i];
+	}
+}
+#endif
+
 typedef struct srfGridMesh_s {
 	surfaceType_t	surfaceType;
 
@@ -604,12 +665,21 @@ typedef struct srfGridMesh_s {
 	int				width, height;
 	float			*widthLodError;
 	float			*heightLodError;
+#ifdef HW_DOL
+	gcWorldVert_t	verts[1];		// variable sized
+#else
 	drawVert_t		verts[1];		// variable sized
+#endif
 } srfGridMesh_t;
 
 
 
+#ifdef HW_DOL
+/* HW_DOL face point: xyz, st, lightmap as 2 x u16 in [5], color bytes in [6]. */
+#define	VERTEXSIZE	7
+#else
 #define	VERTEXSIZE	8
+#endif
 typedef struct {
 	surfaceType_t	surfaceType;
 	cplane_t	plane;
@@ -640,10 +710,18 @@ typedef struct {
 
 	// triangle definitions
 	int				numIndexes;
+#ifdef HW_DOL
+	unsigned short	*indexes;
+#else
 	int				*indexes;
+#endif
 
 	int				numVerts;
+#ifdef HW_DOL
+	gcWorldVert_t	*verts;
+#else
 	drawVert_t		*verts;
+#endif
 } srfTriangles_t;
 
 // inter-quake-model

@@ -208,7 +208,11 @@ static const unsigned int missionpak_checksums[] =
 #define MAX_FILEHASH_SIZE	1024
 
 typedef struct fileInPack_s {
+#ifdef HW_DOL
+	unsigned int			hash;		/* FS_GCHashName of the lower-case name */
+#else
 	char					*name;		// name of the file
+#endif
 	unsigned long			pos;		// file info position in zip
 	unsigned long			len;		// uncompress file size
 	struct	fileInPack_s*	next;		// next file in the hash
@@ -357,6 +361,7 @@ int FS_LoadStack( void )
 	return fs_loadStack;
 }
 
+#ifndef HW_DOL
 /*
 ================
 return a hash value for the filename
@@ -381,6 +386,60 @@ static long FS_HashFileName( const char *fname, int hashSize ) {
 	hash &= (hashSize-1);
 	return hash;
 }
+#endif
+
+#ifdef HW_DOL
+qboolean FS_FilenameCompare( const char *s1, const char *s2 );
+
+/*
+================
+32-bit FNV-1a over the whole lower-case name, extension included
+================
+*/
+static unsigned int FS_GCHashName( const char *fname ) {
+	unsigned int	hash = 2166136261u;
+	unsigned char	letter;
+
+	while ( *fname != '\0' ) {
+		letter = (unsigned char)tolower( *fname );
+		if ( letter == '\\' ) letter = '/';
+		if ( letter == PATH_SEP ) letter = '/';
+		hash ^= letter;
+		hash *= 16777619u;
+		fname++;
+	}
+	return hash;
+}
+
+static unzFile	fs_gcNameZip;
+static pack_t	*fs_gcNamePak;
+
+/* Second handle, never touches pak->handle used by an open non-unique file. */
+static unzFile FS_GCNameZip( pack_t *pak ) {
+	if ( fs_gcNamePak != pak ) {
+		if ( fs_gcNameZip ) {
+			unzClose( fs_gcNameZip );
+		}
+		fs_gcNameZip = unzOpen( pak->pakFilename );
+		fs_gcNamePak = pak;
+		if ( !fs_gcNameZip ) {
+			Com_Error( ERR_FATAL, "Couldn't open %s", pak->pakFilename );
+		}
+	}
+	return fs_gcNameZip;
+}
+
+static qboolean FS_GCPakEntryIs( pack_t *pak, fileInPack_t *entry, const char *filename ) {
+	char	name[MAX_ZPATH];
+	unzFile	zip = FS_GCNameZip( pak );
+
+	unzSetOffset( zip, entry->pos );
+	if ( unzGetCurrentFileInfo( zip, NULL, name, sizeof( name ), NULL, 0, NULL, 0 ) != UNZ_OK ) {
+		return qfalse;
+	}
+	return !FS_FilenameCompare( name, filename );
+}
+#endif
 
 static fileHandle_t	FS_HandleForFile(void) {
 	int		i;
@@ -1090,6 +1149,9 @@ long FS_FOpenFileReadDir(const char *filename, searchpath_t *search, fileHandle_
 	char		*netpath;
 	FILE		*filep;
 	int			len;
+#ifdef HW_DOL
+	unsigned int	fullHash;
+#endif
 
 	if(filename == NULL)
 		Com_Error(ERR_FATAL, "FS_FOpenFileRead: NULL 'filename' parameter passed");
@@ -1128,7 +1190,12 @@ long FS_FOpenFileReadDir(const char *filename, searchpath_t *search, fileHandle_
 		// is the element a pak file?
 		if(search->pack)
 		{
+#ifdef HW_DOL
+			fullHash = FS_GCHashName( filename );
+			hash = fullHash & ( search->pack->hashSize - 1 );
+#else
 			hash = FS_HashFileName(filename, search->pack->hashSize);
+#endif
 
 			if(search->pack->hashTable[hash])
 			{
@@ -1139,7 +1206,11 @@ long FS_FOpenFileReadDir(const char *filename, searchpath_t *search, fileHandle_
 				do
 				{
 					// case and separator insensitive comparisons
+#ifdef HW_DOL
+					if(pakFile->hash == fullHash && FS_GCPakEntryIs( pak, pakFile, filename ))
+#else
 					if(!FS_FilenameCompare(pakFile->name, filename))
+#endif
 					{
 						// found it!
 						if(pakFile->len)
@@ -1185,7 +1256,12 @@ long FS_FOpenFileReadDir(const char *filename, searchpath_t *search, fileHandle_
 	// is the element a pak file?
 	if(search->pack)
 	{
+#ifdef HW_DOL
+		fullHash = FS_GCHashName( filename );
+		hash = fullHash & ( search->pack->hashSize - 1 );
+#else
 		hash = FS_HashFileName(filename, search->pack->hashSize);
+#endif
 
 		if(search->pack->hashTable[hash])
 		{
@@ -1203,7 +1279,11 @@ long FS_FOpenFileReadDir(const char *filename, searchpath_t *search, fileHandle_
 			do
 			{
 				// case and separator insensitive comparisons
+#ifdef HW_DOL
+				if(pakFile->hash == fullHash && FS_GCPakEntryIs( pak, pakFile, filename ))
+#else
 				if(!FS_FilenameCompare(pakFile->name, filename))
+#endif
 				{
 					// found it!
 
@@ -1696,6 +1776,9 @@ int	FS_FileIsInPAK(const char *filename, int *pChecksum ) {
 	pack_t			*pak;
 	fileInPack_t	*pakFile;
 	long			hash = 0;
+#ifdef HW_DOL
+	unsigned int	fullHash = 0;
+#endif
 
 	if ( !fs_searchpaths ) {
 		Com_Error( ERR_FATAL, "Filesystem call made without initialization" );
@@ -1724,7 +1807,12 @@ int	FS_FileIsInPAK(const char *filename, int *pChecksum ) {
 	for ( search = fs_searchpaths ; search ; search = search->next ) {
 		//
 		if (search->pack) {
+#ifdef HW_DOL
+			fullHash = FS_GCHashName( filename );
+			hash = fullHash & ( search->pack->hashSize - 1 );
+#else
 			hash = FS_HashFileName(filename, search->pack->hashSize);
+#endif
 		}
 		// is the element a pak file?
 		if ( search->pack && search->pack->hashTable[hash] ) {
@@ -1738,7 +1826,11 @@ int	FS_FileIsInPAK(const char *filename, int *pChecksum ) {
 			pakFile = pak->hashTable[hash];
 			do {
 				// case and separator insensitive comparisons
+#ifdef HW_DOL
+				if ( pakFile->hash == fullHash && FS_GCPakEntryIs( pak, pakFile, filename ) ) {
+#else
 				if ( !FS_FilenameCompare( pakFile->name, filename ) ) {
+#endif
 					if (pChecksum) {
 						*pChecksum = pak->pure_checksum;
 					}
@@ -1986,11 +2078,16 @@ static pack_t *FS_LoadZipFile(const char *zipfile, const char *basename)
 	unz_global_info gi;
 	char			filename_inzip[MAX_ZPATH];
 	unz_file_info	file_info;
-	int				i, len;
+	int				i;
+#ifndef HW_DOL
+	int				len;
+#endif
 	long			hash;
 	int				fs_numHeaderLongs;
 	int				*fs_headerLongs;
+#ifndef HW_DOL
 	char			*namePtr;
+#endif
 
 	fs_numHeaderLongs = 0;
 
@@ -2000,6 +2097,7 @@ static pack_t *FS_LoadZipFile(const char *zipfile, const char *basename)
 	if (err != UNZ_OK)
 		return NULL;
 
+#ifndef HW_DOL
 	len = 0;
 	unzGoToFirstFile(uf);
 	for (i = 0; i < gi.number_entry; i++)
@@ -2014,6 +2112,9 @@ static pack_t *FS_LoadZipFile(const char *zipfile, const char *basename)
 
 	buildBuffer = Z_Malloc( (gi.number_entry * sizeof( fileInPack_t )) + len );
 	namePtr = ((char *) buildBuffer) + gi.number_entry * sizeof( fileInPack_t );
+#else
+	buildBuffer = Z_Malloc( gi.number_entry * sizeof( fileInPack_t ) );
+#endif
 	fs_headerLongs = Z_Malloc( ( gi.number_entry + 1 ) * sizeof(int) );
 	fs_headerLongs[ fs_numHeaderLongs++ ] = LittleLong( fs_checksumFeed );
 
@@ -2054,10 +2155,15 @@ static pack_t *FS_LoadZipFile(const char *zipfile, const char *basename)
 			fs_headerLongs[fs_numHeaderLongs++] = LittleLong(file_info.crc);
 		}
 		Q_strlwr( filename_inzip );
+#ifdef HW_DOL
+		buildBuffer[i].hash = FS_GCHashName( filename_inzip );
+		hash = buildBuffer[i].hash & ( pack->hashSize - 1 );
+#else
 		hash = FS_HashFileName(filename_inzip, pack->hashSize);
 		buildBuffer[i].name = namePtr;
 		strcpy( buildBuffer[i].name, filename_inzip );
 		namePtr += strlen(filename_inzip) + 1;
+#endif
 		// store the file position in the zip
 		buildBuffer[i].pos = unzGetOffset(uf);
 		buildBuffer[i].len = file_info.uncompressed_size;
@@ -2087,6 +2193,13 @@ Frees a pak structure and releases all associated resources
 
 static void FS_FreePak(pack_t *thepak)
 {
+#ifdef HW_DOL
+	if ( fs_gcNamePak == thepak ) {
+		unzClose( fs_gcNameZip );
+		fs_gcNameZip = NULL;
+		fs_gcNamePak = NULL;
+	}
+#endif
 	unzClose(thepak->handle);
 	Z_Free(thepak->buildBuffer);
 	Z_Free(thepak);
@@ -2194,7 +2307,9 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 	int				extensionLength;
 	int				length, pathDepth, temp;
 	pack_t			*pak;
+#ifndef HW_DOL
 	fileInPack_t	*buildBuffer;
+#endif
 	char			zpath[MAX_ZPATH];
 
 	if ( !fs_searchpaths ) {
@@ -2232,6 +2347,65 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 
 			// look through all the pak file elements
 			pak = search->pack;
+#ifdef HW_DOL
+			{
+				unzFile	zip = FS_GCNameZip( pak );
+				char	nameBuf[MAX_ZPATH];
+
+				unzGoToFirstFile( zip );
+				for (i = 0; i < pak->numfiles; i++) {
+					char	*name;
+					int		zpathLen, depth;
+
+					if ( unzGetCurrentFileInfo( zip, NULL, nameBuf, sizeof( nameBuf ), NULL, 0, NULL, 0 ) != UNZ_OK ) {
+						break;
+					}
+					Q_strlwr( nameBuf );
+
+					// check for directory match
+					name = nameBuf;
+					//
+					if (filter) {
+						// case insensitive
+						if (!Com_FilterPath( filter, name, qfalse )) {
+							unzGoToNextFile( zip );
+							continue;
+						}
+						// unique the match
+						nfiles = FS_AddFileToList( name, list, nfiles );
+					}
+					else {
+
+						zpathLen = FS_ReturnPath(name, zpath, &depth);
+
+						if ( (depth-pathDepth)>2 || pathLength > zpathLen || Q_stricmpn( name, path, pathLength ) ) {
+							unzGoToNextFile( zip );
+							continue;
+						}
+
+						// check for extension match
+						length = strlen( name );
+						if ( length < extensionLength ) {
+							unzGoToNextFile( zip );
+							continue;
+						}
+
+						if ( Q_stricmp( name + length - extensionLength, extension ) ) {
+							unzGoToNextFile( zip );
+							continue;
+						}
+						// unique the match
+
+						temp = pathLength;
+						if (pathLength) {
+							temp++; // include the '/'
+						}
+						nfiles = FS_AddFileToList( name + temp, list, nfiles );
+					}
+					unzGoToNextFile( zip );
+				}
+			}
+#else
 			buildBuffer = pak->buildBuffer;
 			for (i = 0; i < pak->numfiles; i++) {
 				char	*name;
@@ -2273,6 +2447,7 @@ char **FS_ListFilteredFiles( const char *path, const char *extension, char *filt
 					nfiles = FS_AddFileToList( name + temp, list, nfiles );
 				}
 			}
+#endif
 		} else if (search->dir) { // scan for files in the filesystem
 			char	*netpath;
 			int		numSysFiles;

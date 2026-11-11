@@ -400,7 +400,11 @@ static void ParseFace( dsurface_t *ds, drawVert_t *verts, msurface_t *surf, int 
 	// create the srfSurfaceFace_t
 	sfaceSize = ( size_t ) &((srfSurfaceFace_t *)0)->points[numPoints];
 	ofsIndexes = sfaceSize;
+#ifdef HW_DOL
+	sfaceSize += sizeof( unsigned short ) * numIndexes;
+#else
 	sfaceSize += sizeof( int ) * numIndexes;
+#endif
 
 	cv = ri.Hunk_Alloc( sfaceSize, h_low );
 	cv->surfaceType = SF_FACE;
@@ -409,6 +413,23 @@ static void ParseFace( dsurface_t *ds, drawVert_t *verts, msurface_t *surf, int 
 	cv->ofsIndices = ofsIndexes;
 
 	verts += LittleLong( ds->firstVert );
+#ifdef HW_DOL
+	for ( i = 0 ; i < numPoints ; i++ ) {
+		for ( j = 0 ; j < 3 ; j++ ) {
+			cv->points[i][j] = LittleFloat( verts[i].xyz[j] );
+		}
+		for ( j = 0 ; j < 2 ; j++ ) {
+			float	lm;
+
+			cv->points[i][3+j] = LittleFloat( verts[i].st[j] );
+			lm = LittleFloat( verts[i].lightmap[j] );
+			if ( lm < 0.0f ) lm = 0.0f;
+			if ( lm > 1.0f ) lm = 1.0f;
+			((unsigned short *)&cv->points[i][5])[j] = (unsigned short)( lm * GC_LM_SCALE + 0.5f );
+		}
+		R_ColorShiftLightingBytes( verts[i].color, (byte *)&cv->points[i][6] );
+	}
+#else
 	for ( i = 0 ; i < numPoints ; i++ ) {
 		for ( j = 0 ; j < 3 ; j++ ) {
 			cv->points[i][j] = LittleFloat( verts[i].xyz[j] );
@@ -419,11 +440,18 @@ static void ParseFace( dsurface_t *ds, drawVert_t *verts, msurface_t *surf, int 
 		}
 		R_ColorShiftLightingBytes( verts[i].color, (byte *)&cv->points[i][7] );
 	}
+#endif
 
 	indexes += LittleLong( ds->firstIndex );
+#ifdef HW_DOL
+	for ( i = 0 ; i < numIndexes ; i++ ) {
+		((unsigned short *)((byte *)cv + cv->ofsIndices ))[i] = (unsigned short)LittleLong( indexes[ i ] );
+	}
+#else
 	for ( i = 0 ; i < numIndexes ; i++ ) {
 		((int *)((byte *)cv + cv->ofsIndices ))[i] = LittleLong( indexes[ i ] );
 	}
+#endif
 
 	// take the plane information from the lightmap vector
 	for ( i = 0 ; i < 3 ; i++ ) {
@@ -526,19 +554,48 @@ static void ParseTriSurf( dsurface_t *ds, drawVert_t *verts, msurface_t *surf, i
 	numVerts = LittleLong( ds->numVerts );
 	numIndexes = LittleLong( ds->numIndexes );
 
+#ifdef HW_DOL
+	if ( numVerts > 65535 ) {
+		ri.Error( ERR_DROP, "ParseTriSurf: too many vertexes" );
+	}
+#endif
+
 	tri = ri.Hunk_Alloc( sizeof( *tri ) + numVerts * sizeof( tri->verts[0] ) 
 		+ numIndexes * sizeof( tri->indexes[0] ), h_low );
 	tri->surfaceType = SF_TRIANGLES;
 	tri->numVerts = numVerts;
 	tri->numIndexes = numIndexes;
+#ifdef HW_DOL
+	tri->verts = (gcWorldVert_t *)(tri + 1);
+	tri->indexes = (unsigned short *)(tri->verts + tri->numVerts );
+#else
 	tri->verts = (drawVert_t *)(tri + 1);
 	tri->indexes = (int *)(tri->verts + tri->numVerts );
+#endif
 
 	surf->data = (surfaceType_t *)tri;
 
 	// copy vertexes
 	ClearBounds( tri->bounds[0], tri->bounds[1] );
 	verts += LittleLong( ds->firstVert );
+#ifdef HW_DOL
+	for ( i = 0 ; i < numVerts ; i++ ) {
+		drawVert_t	dv;
+
+		for ( j = 0 ; j < 3 ; j++ ) {
+			dv.xyz[j] = LittleFloat( verts[i].xyz[j] );
+			dv.normal[j] = LittleFloat( verts[i].normal[j] );
+		}
+		AddPointToBounds( dv.xyz, tri->bounds[0], tri->bounds[1] );
+		for ( j = 0 ; j < 2 ; j++ ) {
+			dv.st[j] = LittleFloat( verts[i].st[j] );
+			dv.lightmap[j] = LittleFloat( verts[i].lightmap[j] );
+		}
+
+		R_ColorShiftLightingBytes( verts[i].color, dv.color );
+		R_GCPackWorldVert( &dv, &tri->verts[i] );
+	}
+#else
 	for ( i = 0 ; i < numVerts ; i++ ) {
 		for ( j = 0 ; j < 3 ; j++ ) {
 			tri->verts[i].xyz[j] = LittleFloat( verts[i].xyz[j] );
@@ -552,15 +609,27 @@ static void ParseTriSurf( dsurface_t *ds, drawVert_t *verts, msurface_t *surf, i
 
 		R_ColorShiftLightingBytes( verts[i].color, tri->verts[i].color );
 	}
+#endif
 
 	// copy indexes
 	indexes += LittleLong( ds->firstIndex );
+#ifdef HW_DOL
+	for ( i = 0 ; i < numIndexes ; i++ ) {
+		int		index = LittleLong( indexes[i] );
+
+		if ( index < 0 || index >= numVerts ) {
+			ri.Error( ERR_DROP, "Bad index in triangle surface" );
+		}
+		tri->indexes[i] = (unsigned short)index;
+	}
+#else
 	for ( i = 0 ; i < numIndexes ; i++ ) {
 		tri->indexes[i] = LittleLong( indexes[i] );
 		if ( tri->indexes[i] < 0 || tri->indexes[i] >= numVerts ) {
 			ri.Error( ERR_DROP, "Bad index in triangle surface" );
 		}
 	}
+#endif
 }
 
 /*
@@ -1273,7 +1342,11 @@ void R_MovePatchSurfacesToHunk(void) {
 		if ( grid->surfaceType != SF_GRID )
 			continue;
 		//
+#ifdef HW_DOL
+		size = (grid->width * grid->height - 1) * sizeof( gcWorldVert_t ) + sizeof( *grid );
+#else
 		size = (grid->width * grid->height - 1) * sizeof( drawVert_t ) + sizeof( *grid );
+#endif
 		hunkgrid = ri.Hunk_Alloc( size, h_low );
 		Com_Memcpy(hunkgrid, grid, size);
 

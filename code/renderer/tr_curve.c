@@ -289,12 +289,20 @@ R_CreateSurfaceGridMesh
 srfGridMesh_t *R_CreateSurfaceGridMesh(int width, int height,
 								drawVert_t ctrl[MAX_GRID_SIZE][MAX_GRID_SIZE], float errorTable[2][MAX_GRID_SIZE] ) {
 	int i, j, size;
+#ifdef HW_DOL
+	gcWorldVert_t	*vert;
+#else
 	drawVert_t	*vert;
+#endif
 	vec3_t		tmpVec;
 	srfGridMesh_t *grid;
 
 	// copy the results out to a grid
+#ifdef HW_DOL
+	size = (width * height - 1) * sizeof( gcWorldVert_t ) + sizeof( *grid );
+#else
 	size = (width * height - 1) * sizeof( drawVert_t ) + sizeof( *grid );
+#endif
 
 #ifdef PATCH_STITCHING
 	grid = /*ri.Hunk_Alloc*/ ri.Malloc( size );
@@ -323,7 +331,11 @@ srfGridMesh_t *R_CreateSurfaceGridMesh(int width, int height,
 	for ( i = 0 ; i < width ; i++ ) {
 		for ( j = 0 ; j < height ; j++ ) {
 			vert = &grid->verts[j*width+i];
+#ifdef HW_DOL
+			R_GCPackWorldVert( &ctrl[j][i], vert );
+#else
 			*vert = ctrl[j][i];
+#endif
 			AddPointToBounds( vert->xyz, grid->meshBounds[0], grid->meshBounds[1] );
 		}
 	}
@@ -538,7 +550,15 @@ srfGridMesh_t *R_GridInsertColumn( srfGridMesh_t *grid, int column, int row, vec
 		if (i == column) {
 			//insert new column
 			for (j = 0; j < grid->height; j++) {
+#ifdef HW_DOL
+				drawVert_t	v0, v1;
+
+				R_GCUnpackWorldVert( &grid->verts[j * grid->width + i-1], &v0 );
+				R_GCUnpackWorldVert( &grid->verts[j * grid->width + i], &v1 );
+				LerpDrawVert( &v0, &v1, &ctrl[j][i] );
+#else
 				LerpDrawVert( &grid->verts[j * grid->width + i-1], &grid->verts[j * grid->width + i], &ctrl[j][i] );
+#endif
 				if (j == row)
 					VectorCopy(point, ctrl[j][i].xyz);
 			}
@@ -547,7 +567,11 @@ srfGridMesh_t *R_GridInsertColumn( srfGridMesh_t *grid, int column, int row, vec
 		}
 		errorTable[0][i] = grid->widthLodError[oldwidth];
 		for (j = 0; j < grid->height; j++) {
+#ifdef HW_DOL
+			R_GCUnpackWorldVert( &grid->verts[j * grid->width + oldwidth], &ctrl[j][i] );
+#else
 			ctrl[j][i] = grid->verts[j * grid->width + oldwidth];
+#endif
 		}
 		oldwidth++;
 	}
@@ -592,7 +616,15 @@ srfGridMesh_t *R_GridInsertRow( srfGridMesh_t *grid, int row, int column, vec3_t
 		if (i == row) {
 			//insert new row
 			for (j = 0; j < grid->width; j++) {
+#ifdef HW_DOL
+				drawVert_t	v0, v1;
+
+				R_GCUnpackWorldVert( &grid->verts[(i-1) * grid->width + j], &v0 );
+				R_GCUnpackWorldVert( &grid->verts[i * grid->width + j], &v1 );
+				LerpDrawVert( &v0, &v1, &ctrl[i][j] );
+#else
 				LerpDrawVert( &grid->verts[(i-1) * grid->width + j], &grid->verts[i * grid->width + j], &ctrl[i][j] );
+#endif
 				if (j == column)
 					VectorCopy(point, ctrl[i][j].xyz);
 			}
@@ -601,7 +633,11 @@ srfGridMesh_t *R_GridInsertRow( srfGridMesh_t *grid, int row, int column, vec3_t
 		}
 		errorTable[1][i] = grid->heightLodError[oldheight];
 		for (j = 0; j < grid->width; j++) {
+#ifdef HW_DOL
+			R_GCUnpackWorldVert( &grid->verts[oldheight * grid->width + j], &ctrl[i][j] );
+#else
 			ctrl[i][j] = grid->verts[oldheight * grid->width + j];
+#endif
 		}
 		oldheight++;
 	}

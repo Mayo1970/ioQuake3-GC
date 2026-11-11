@@ -622,7 +622,11 @@ R_PlaneForSurface
 void R_PlaneForSurface (surfaceType_t *surfType, cplane_t *plane) {
 	srfTriangles_t	*tri;
 	srfPoly_t		*poly;
+#ifdef HW_DOL
+	gcWorldVert_t	*v1, *v2, *v3;
+#else
 	drawVert_t		*v1, *v2, *v3;
+#endif
 	vec4_t			plane4;
 
 	if (!surfType) {

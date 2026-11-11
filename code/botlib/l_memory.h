@@ -74,3 +74,7 @@ void PrintMemoryLabels(void);
 int MemoryByteSize(void *ptr);
 //free all allocated memory
 void DumpMemory(void);
+#ifdef HW_DOL
+//reset the botlib hunk pool so it does not survive a library restart
+void GC_ResetBotHunkPool( void );
+#endif

@@ -379,6 +379,13 @@ void *GetClearedMemory(unsigned long size)
 // Returns:				-
 // Changes Globals:		-
 //===========================================================================
+#ifdef HW_DOL
+#define GC_BOTPOOL_CHUNK	16384	/* bytes per pool chunk taken from the hunk */
+#define GC_BOTPOOL_SMALL	512	/* larger requests keep their own hunk block */
+static char *gc_botPool;
+static int gc_botPoolLeft;
+#endif
+
 #ifdef MEMDEBUG
 void *GetHunkMemoryDebug(unsigned long size, char *label, char *file, int line)
 #else
@@ -387,13 +394,37 @@ void *GetHunkMemory(unsigned long size)
 {
 	void *ptr;
 	unsigned long int *memid;
+#ifdef HW_DOL
+	unsigned long int need = ( size + sizeof(unsigned long int) + 3 ) & ~3;
 
+	if ( size > GC_BOTPOOL_SMALL ) {
+		ptr = botimport.HunkAlloc( size + sizeof(unsigned long int) );
+		if (!ptr) return NULL;
+	} else {
+		if ( need > (unsigned long int)gc_botPoolLeft ) {
+			gc_botPool = botimport.HunkAlloc( GC_BOTPOOL_CHUNK );
+			if (!gc_botPool) return NULL;
+			gc_botPoolLeft = GC_BOTPOOL_CHUNK;
+		}
+		ptr = gc_botPool;
+		gc_botPool += need;
+		gc_botPoolLeft -= need;
+	}
+#else
 	ptr = botimport.HunkAlloc(size + sizeof(unsigned long int));
 	if (!ptr) return NULL;
+#endif
 	memid = (unsigned long int *) ptr;
 	*memid = HUNK_ID;
 	return (unsigned long int *) ((char *) ptr + sizeof(unsigned long int));
 } //end of the function GetHunkMemory
+#ifdef HW_DOL
+void GC_ResetBotHunkPool( void )
+{
+	gc_botPool = NULL;
+	gc_botPoolLeft = 0;
+}
+#endif
 //===========================================================================
 //
 // Parameter:			-

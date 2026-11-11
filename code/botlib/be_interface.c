@@ -137,6 +137,10 @@ int Export_BotLibSetup(void)
 {
 	int		errnum;
 	
+#ifdef HW_DOL
+	/* Hunk is cleared between maps: a pool pointer must not survive a restart. */
+	GC_ResetBotHunkPool();
+#endif
 	botDeveloper = LibVarGetValue("bot_developer");
  	memset( &botlibglobals, 0, sizeof(botlibglobals) );
 	//initialize byte swapping (litte endian etc.)
@@ -225,6 +229,10 @@ int Export_BotLibShutdown(void)
 	//shut down library log file
 	Log_Shutdown();
 	//
+#ifdef HW_DOL
+	/* Drop the pool pointer before the hunk can be cleared. */
+	GC_ResetBotHunkPool();
+#endif
 	botlibsetup = qfalse;
 	botlibglobals.botlibsetup = qfalse;
 	// print any files still open
