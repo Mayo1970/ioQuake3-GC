@@ -6,6 +6,7 @@
 
 static int s_initialized;
 static u32 s_modelBase;
+static u32 s_shaderBase;
 static u32 s_soundBase;
 static u32 s_soundSize;
 
@@ -26,18 +27,24 @@ void GC_ARAM_Init(void)
 	ARQ_Init();
 
 	s_modelBase = base;
-	s_soundBase = base + GC_ARAM_MODEL_SIZE;
+	s_shaderBase = base + GC_ARAM_MODEL_SIZE;
+	s_soundBase = s_shaderBase + GC_ARAM_SHADER_SIZE;
 	s_soundSize = AR_GetSize() - s_soundBase;
 
 #ifdef GC_DEBUG
-	SYS_Report("GC aram: size %u, models 0x%x +%u, sound 0x%x +%u\n",
-		AR_GetSize(), s_modelBase, (u32)GC_ARAM_MODEL_SIZE, s_soundBase, s_soundSize);
+	SYS_Report("GC aram: size %u, models 0x%x +%u, shader 0x%x +%u, sound 0x%x +%u\n",
+		AR_GetSize(), s_modelBase, (u32)GC_ARAM_MODEL_SIZE, s_shaderBase, (u32)GC_ARAM_SHADER_SIZE, s_soundBase, s_soundSize);
 #endif
 }
 
 u32 GC_ARAM_ModelBase(void)
 {
 	return s_modelBase;
+}
+
+u32 GC_ARAM_ShaderBase(void)
+{
+	return s_shaderBase;
 }
 
 u32 GC_ARAM_SoundBase(void)
