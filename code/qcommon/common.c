@@ -45,7 +45,9 @@ int demo_protocols[] =
 /* QGC-13 sizes: hunk peak 4.9 MB, zone peak 2.65 MB with 4 bots, null renderer (docs/MEMORY.md). */
 #define MIN_COMHUNKMEGS		6
 #define DEF_COMHUNKMEGS 	8
-#define DEF_COMZONEMEGS		3
+#define DEF_COMZONEMEGS		2
+/* Zone 2.75 MB: q3dm6 peak 2583196 (Matt, QGC-48). */
+#define GC_ZONE_BYTES (2883584)
 /* Free MEM1 kept out of the hunk: textures 2.25 + GX FIFO 0.25 MB (Matt, QGC-47; sound budget is QGC-21/22). */
 #define GC_HUNK_RESERVE		(2621440)
 /* malloc header and the hunk's 31-byte alignment pad. */
@@ -1479,11 +1481,19 @@ void Com_InitZoneMemory( void ) {
 	// allocate the random block zone
 	cv = Cvar_Get( "com_zoneMegs", DEF_COMZONEMEGS_S, CVAR_LATCH | CVAR_ARCHIVE );
 
+#ifdef HW_DOL
+	if ( cv->integer <= DEF_COMZONEMEGS ) {
+		s_zoneTotal = GC_ZONE_BYTES;
+	} else {
+		s_zoneTotal = cv->integer * 1024 * 1024;
+	}
+#else
 	if ( cv->integer < DEF_COMZONEMEGS ) {
 		s_zoneTotal = 1024 * 1024 * DEF_COMZONEMEGS;
 	} else {
 		s_zoneTotal = cv->integer * 1024 * 1024;
 	}
+#endif
 
 	mainzone = calloc( s_zoneTotal, 1 );
 	if ( !mainzone ) {
