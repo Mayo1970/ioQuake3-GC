@@ -1037,6 +1037,7 @@ R_Register
 static void GC_TexMem_f( void ) {
 	GXBE_TexHeapReport( "now" );
 	R_MD3AramReport( "now" );
+	ri.Printf( PRINT_ALL, "GC backend peak: drawsurfs %i of %i, commands %i of %i\n", r_gcDrawSurfPeak, MAX_DRAWSURFS, r_gcCmdPeak, MAX_RENDER_COMMANDS );
 }
 #endif
 
