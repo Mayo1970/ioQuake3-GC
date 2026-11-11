@@ -441,7 +441,7 @@ The BSS line is `s_gx_texborrowed` (2048 slots, 8192 bytes), the default-texture
 | hunk peak | 20033784 | 10516120 | -9517664 |
 | model ARAM used | - | 9586336 of 10485760 | |
 
-The match ran 15 minutes of emulated play with no error. Frame dumps show the third-person player model and its weapon with correct shape and animation.
+The run lasted 15 minutes of wall time (37 status ticks) with no error; the 4 bots scored. Frame dumps show the third-person player model and its weapon with correct shape and animation.
 With all 3 LODs, the model part has 899424 bytes left: a fifth player set (about 2.3 MB) does not fit. QGC-46 (one LOD) changes this.
 
 ### Binary size (release)
