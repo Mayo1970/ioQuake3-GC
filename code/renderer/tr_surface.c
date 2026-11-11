@@ -21,8 +21,18 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 // tr_surf.c
 #include "tr_local.h"
+#ifdef HW_DOL
+#include <malloc.h>
+#include "../sys/gc_aram.h"
+#define GC_PAD32(x) (((x) + 31) & ~31)
+#endif
 #if idppc_altivec && !defined(MACOS_X)
 #include <altivec.h>
+#endif
+
+#ifdef HW_DOL
+static short *s_md3NewFrame;
+static short *s_md3OldFrame;
 #endif
 
 /*
@@ -764,12 +774,27 @@ static void LerpMeshVertexes_scalar(md3Surface_t *surf, float backlerp)
 	int		vertNum;
 	unsigned lat, lng;
 	int		numVerts;
+#ifdef HW_DOL
+	int		stride;
+#endif
 
 	outXyz = tess.xyz[tess.numVertexes];
 	outNormal = tess.normal[tess.numVertexes];
 
+#ifdef HW_DOL
+	if ( !s_md3NewFrame ) {
+		s_md3NewFrame = (short *)memalign( 32, GC_PAD32( SHADER_MAX_VERTEXES * 8 ) );
+		if ( !s_md3NewFrame )
+			ri.Error( ERR_FATAL, "LerpMeshVertexes_scalar: md3 frame memalign failed" );
+	}
+	stride = GC_PAD32( surf->numVerts * 8 );
+	GC_ARAM_Read( s_md3NewFrame,
+		surf->ofsXyzNormals + backEnd.currentEntity->e.frame * stride, stride );
+	newXyz = s_md3NewFrame;
+#else
 	newXyz = (short *)((byte *)surf + surf->ofsXyzNormals)
 		+ (backEnd.currentEntity->e.frame * surf->numVerts * 4);
+#endif
 	newNormals = newXyz + 3;
 
 	newXyzScale = MD3_XYZ_SCALE * (1.0 - backlerp);
@@ -807,8 +832,19 @@ static void LerpMeshVertexes_scalar(md3Surface_t *surf, float backlerp)
 		//
 		// interpolate and copy the vertex and normal
 		//
+#ifdef HW_DOL
+		if ( !s_md3OldFrame ) {
+			s_md3OldFrame = (short *)memalign( 32, GC_PAD32( SHADER_MAX_VERTEXES * 8 ) );
+			if ( !s_md3OldFrame )
+				ri.Error( ERR_FATAL, "LerpMeshVertexes_scalar: md3 old frame memalign failed" );
+		}
+		GC_ARAM_Read( s_md3OldFrame,
+			surf->ofsXyzNormals + backEnd.currentEntity->e.oldframe * stride, stride );
+		oldXyz = s_md3OldFrame;
+#else
 		oldXyz = (short *)((byte *)surf + surf->ofsXyzNormals)
 			+ (backEnd.currentEntity->e.oldframe * surf->numVerts * 4);
+#endif
 		oldNormals = oldXyz + 3;
 
 		oldXyzScale = MD3_XYZ_SCALE * backlerp;

@@ -23,12 +23,51 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "tr_local.h"
 
+#ifdef HW_DOL
+#include <malloc.h>
+#include "../sys/gc_aram.h"
+#define GC_PAD32(x) (((x) + 31) & ~31)
+#endif
+
 #define	LL(x) x=LittleLong(x)
 
 static qboolean R_LoadMD3(model_t *mod, int lod, void *buffer, const char *name );
 static qboolean R_LoadMD4(model_t *mod, void *buffer, const char *name );
 #ifdef RAVENMD4
 static qboolean R_LoadMDR(model_t *mod, void *buffer, int filesize, const char *name );
+#endif
+
+#ifdef HW_DOL
+static u32 s_md3AramNext;
+#ifdef GC_DEBUG
+static u32 s_md3AramPeak;
+#endif
+static qboolean s_md3AramFull;
+
+static u32 R_MD3AramAlloc( u32 len ) {
+	u32 base = GC_ARAM_ModelBase();
+	u32 addr;
+
+	if ( s_md3AramNext + len > base + GC_ARAM_MODEL_SIZE ) {
+		return 0;
+	}
+
+	addr = s_md3AramNext;
+	s_md3AramNext += len;
+#ifdef GC_DEBUG
+	if ( s_md3AramNext - base > s_md3AramPeak ) {
+		s_md3AramPeak = s_md3AramNext - base;
+	}
+#endif
+	return addr;
+}
+
+#if defined(GC_DEBUG)
+void R_MD3AramReport( const char *where ) {
+	ri.Printf( PRINT_ALL, "GC aram %s: models used %u of %u, peak %u\n",
+		where, s_md3AramNext - GC_ARAM_ModelBase(), (u32)GC_ARAM_MODEL_SIZE, s_md3AramPeak );
+}
+#endif
 #endif
 
 /*
@@ -48,6 +87,14 @@ qhandle_t R_RegisterMD3(const char *name, model_t *mod)
 	int			numLoaded;
 	char filename[MAX_QPATH], namebuf[MAX_QPATH+20];
 	char *fext, defex[] = "md3";
+#ifdef HW_DOL
+	u32			mark;
+#endif
+
+#ifdef HW_DOL
+	s_md3AramFull = qfalse;
+	mark = s_md3AramNext;
+#endif
 
 	numLoaded = 0;
 
@@ -94,6 +141,16 @@ qhandle_t R_RegisterMD3(const char *name, model_t *mod)
 		else
 			break;
 	}
+
+#ifdef HW_DOL
+	if ( s_md3AramFull ) {
+		s_md3AramNext = mark;
+		mod->type = MOD_BAD;
+		mod->numLods = 0;
+		memset( mod->md3, 0, sizeof( mod->md3 ) );
+		return 0;
+	}
+#endif
 
 	if(numLoaded)
 	{
@@ -408,7 +465,9 @@ static qboolean R_LoadMD3 (model_t *mod, int lod, void *buffer, const char *mod_
 	md3XyzNormal_t		*xyz;
 	md3Tag_t			*tag;
 	int					version;
+#ifndef HW_DOL
 	int					size;
+#endif
 
 	pinmodel = (md3Header_t *)buffer;
 
@@ -419,6 +478,246 @@ static qboolean R_LoadMD3 (model_t *mod, int lod, void *buffer, const char *mod_
 		return qfalse;
 	}
 
+#ifdef HW_DOL
+	{
+		md3Header_t		*hunkmodel;
+		md3Surface_t	*fsurf;
+		int				numFrames, numSurfaces;
+		int				ofsFrames, ofsTags, ofsSurfaces, ofsEnd;
+		u32				aramSize = 0, keepSize, aramBase, aramNext;
+		u32				totalXyz = 0;
+		unsigned char	*staging;
+		u32				stagingUsed = 0;
+		int				stride;
+
+		numFrames = LittleLong( pinmodel->numFrames );
+		numSurfaces = LittleLong( pinmodel->numSurfaces );
+		ofsFrames = LittleLong( pinmodel->ofsFrames );
+		ofsTags = LittleLong( pinmodel->ofsTags );
+		ofsSurfaces = LittleLong( pinmodel->ofsSurfaces );
+		ofsEnd = LittleLong( pinmodel->ofsEnd );
+
+		if ( ofsFrames > ofsTags || ofsTags > ofsSurfaces ) {
+			ri.Printf( PRINT_WARNING, "R_LoadMD3: %s has an unsupported layout\n", mod_name );
+			return qfalse;
+		}
+
+		fsurf = (md3Surface_t *)( (byte *)buffer + ofsSurfaces );
+		for ( i = 0 ; i < numSurfaces ; i++ ) {
+			int verts = LittleLong( fsurf->numVerts );
+			int frames = LittleLong( fsurf->numFrames );
+			int ofsTriangles = LittleLong( fsurf->ofsTriangles );
+			int ofsShaders = LittleLong( fsurf->ofsShaders );
+			int ofsSt = LittleLong( fsurf->ofsSt );
+			int surfOfsXyz = LittleLong( fsurf->ofsXyzNormals );
+			int surfOfsEnd = LittleLong( fsurf->ofsEnd );
+
+			if ( verts > SHADER_MAX_VERTEXES ) {
+				ri.Printf( PRINT_WARNING, "R_LoadMD3: %s has more than %i verts on a surface (%i).\n",
+					mod_name, SHADER_MAX_VERTEXES, verts );
+				return qfalse;
+			}
+			if ( LittleLong( fsurf->numTriangles ) * 3 > SHADER_MAX_INDEXES ) {
+				ri.Printf( PRINT_WARNING, "R_LoadMD3: %s has more than %i triangles on a surface (%i).\n",
+					mod_name, SHADER_MAX_INDEXES / 3, LittleLong( fsurf->numTriangles ) );
+				return qfalse;
+			}
+			if ( surfOfsXyz + verts * frames * 8 != surfOfsEnd ||
+				ofsTriangles >= surfOfsXyz || ofsShaders >= surfOfsXyz || ofsSt >= surfOfsXyz ||
+				frames != numFrames ) {
+				ri.Printf( PRINT_WARNING, "R_LoadMD3: %s has an unsupported layout\n", mod_name );
+				return qfalse;
+			}
+
+			stride = GC_PAD32( verts * 8 );
+			aramSize += (u32)stride * numFrames;
+			totalXyz += (u32)verts * frames * 8;
+			fsurf = (md3Surface_t *)( (byte *)fsurf + surfOfsEnd );
+		}
+
+		if ( (int)( (byte *)fsurf - (byte *)buffer ) != ofsEnd ) {
+			ri.Printf( PRINT_WARNING, "R_LoadMD3: %s has an unsupported layout\n", mod_name );
+			return qfalse;
+		}
+
+		if ( numFrames < 1 ) {
+			ri.Printf( PRINT_WARNING, "R_LoadMD3: %s has no frames\n", mod_name );
+			return qfalse;
+		}
+
+		keepSize = (u32)( ofsEnd - totalXyz );
+
+		aramBase = R_MD3AramAlloc( aramSize );
+		if ( !aramBase ) {
+			s_md3AramFull = qtrue;
+			ri.Printf( PRINT_WARNING, "R_LoadMD3: %s: model ARAM full (%u bytes needed, %u free)\n",
+				mod_name, aramSize, (u32)( GC_ARAM_ModelBase() + GC_ARAM_MODEL_SIZE - s_md3AramNext ) );
+			return qfalse;
+		}
+
+		mod->type = MOD_MESH;
+		mod->md3[lod] = ri.Hunk_Alloc( (int)keepSize, h_low );
+		mod->dataSize += (int)keepSize;
+		hunkmodel = mod->md3[lod];
+
+		Com_Memcpy( hunkmodel, buffer, ofsSurfaces );
+		fsurf = (md3Surface_t *)( (byte *)buffer + ofsSurfaces );
+		surf = (md3Surface_t *)( (byte *)hunkmodel + ofsSurfaces );
+		for ( i = 0 ; i < numSurfaces ; i++ ) {
+			int surfOfsXyz = LittleLong( fsurf->ofsXyzNormals );
+			int surfOfsEnd = LittleLong( fsurf->ofsEnd );
+
+			Com_Memcpy( surf, fsurf, surfOfsXyz );
+			fsurf = (md3Surface_t *)( (byte *)fsurf + surfOfsEnd );
+			surf = (md3Surface_t *)( (byte *)surf + surfOfsXyz );
+		}
+
+		LL(hunkmodel->ident);
+		LL(hunkmodel->version);
+		LL(hunkmodel->numFrames);
+		LL(hunkmodel->numTags);
+		LL(hunkmodel->numSurfaces);
+		LL(hunkmodel->ofsFrames);
+		LL(hunkmodel->ofsTags);
+		LL(hunkmodel->ofsSurfaces);
+		LL(hunkmodel->ofsEnd);
+		hunkmodel->ofsEnd = (int)keepSize;
+
+		// swap all the frames
+		frame = (md3Frame_t *) ( (byte *)hunkmodel + hunkmodel->ofsFrames );
+		for ( i = 0 ; i < hunkmodel->numFrames ; i++, frame++) {
+			frame->radius = LittleFloat( frame->radius );
+			for ( j = 0 ; j < 3 ; j++ ) {
+				frame->bounds[0][j] = LittleFloat( frame->bounds[0][j] );
+				frame->bounds[1][j] = LittleFloat( frame->bounds[1][j] );
+				frame->localOrigin[j] = LittleFloat( frame->localOrigin[j] );
+			}
+		}
+
+		// swap all the tags
+		tag = (md3Tag_t *) ( (byte *)hunkmodel + hunkmodel->ofsTags );
+		for ( i = 0 ; i < hunkmodel->numTags * hunkmodel->numFrames ; i++, tag++) {
+			for ( j = 0 ; j < 3 ; j++ ) {
+				tag->origin[j] = LittleFloat( tag->origin[j] );
+				tag->axis[0][j] = LittleFloat( tag->axis[0][j] );
+				tag->axis[1][j] = LittleFloat( tag->axis[1][j] );
+				tag->axis[2][j] = LittleFloat( tag->axis[2][j] );
+			}
+		}
+
+		staging = (unsigned char *)memalign( 32, 32768 );
+		if ( !staging ) {
+			ri.Printf( PRINT_WARNING, "R_LoadMD3: %s: frame staging memalign failed\n", mod_name );
+			s_md3AramNext = aramBase;
+			return qfalse;
+		}
+
+		// swap all the surfaces
+		surf = (md3Surface_t *) ( (byte *)hunkmodel + hunkmodel->ofsSurfaces );
+		fsurf = (md3Surface_t *)( (byte *)buffer + ofsSurfaces );
+		aramNext = aramBase;
+		for ( i = 0 ; i < hunkmodel->numSurfaces ; i++ ) {
+			int surfOfsXyz = LittleLong( fsurf->ofsXyzNormals );
+			int surfOfsEnd = LittleLong( fsurf->ofsEnd );
+
+			LL(surf->ident);
+			LL(surf->flags);
+			LL(surf->numFrames);
+			LL(surf->numShaders);
+			LL(surf->numTriangles);
+			LL(surf->ofsTriangles);
+			LL(surf->numVerts);
+			LL(surf->ofsShaders);
+			LL(surf->ofsSt);
+			LL(surf->ofsXyzNormals);
+			LL(surf->ofsEnd);
+
+			// change to surface identifier
+			surf->ident = SF_MD3;
+
+			// lowercase the surface name so skin compares are faster
+			Q_strlwr( surf->name );
+
+			// strip off a trailing _1 or _2
+			// this is a crutch for q3data being a mess
+			j = strlen( surf->name );
+			if ( j > 2 && surf->name[j-2] == '_' ) {
+				surf->name[j-2] = 0;
+			}
+
+			// register the shaders
+			shader = (md3Shader_t *) ( (byte *)surf + surf->ofsShaders );
+			for ( j = 0 ; j < surf->numShaders ; j++, shader++ ) {
+				shader_t	*sh;
+
+				sh = R_FindShader( shader->name, LIGHTMAP_NONE, qtrue );
+				if ( sh->defaultShader ) {
+					shader->shaderIndex = 0;
+				} else {
+					shader->shaderIndex = sh->index;
+				}
+			}
+
+			// swap all the triangles
+			tri = (md3Triangle_t *) ( (byte *)surf + surf->ofsTriangles );
+			for ( j = 0 ; j < surf->numTriangles ; j++, tri++ ) {
+				LL(tri->indexes[0]);
+				LL(tri->indexes[1]);
+				LL(tri->indexes[2]);
+			}
+
+			// swap all the ST
+			st = (md3St_t *) ( (byte *)surf + surf->ofsSt );
+			for ( j = 0 ; j < surf->numVerts ; j++, st++ ) {
+				st->st[0] = LittleFloat( st->st[0] );
+				st->st[1] = LittleFloat( st->st[1] );
+			}
+
+			/* HW_DOL: ARAM address of frame 0, frames are GC_PAD32(numVerts * 8) apart */
+			surf->ofsEnd = surf->ofsXyzNormals;
+			surf->ofsXyzNormals = (int)aramNext;
+
+			// swap all the XyzNormals in the file buffer
+			xyz = (md3XyzNormal_t *) ( (byte *)fsurf + surfOfsXyz );
+			for ( j = 0 ; j < surf->numVerts * surf->numFrames ; j++, xyz++ ) {
+				xyz->xyz[0] = LittleShort( xyz->xyz[0] );
+				xyz->xyz[1] = LittleShort( xyz->xyz[1] );
+				xyz->xyz[2] = LittleShort( xyz->xyz[2] );
+				xyz->normal = LittleShort( xyz->normal );
+			}
+
+			stride = GC_PAD32( surf->numVerts * 8 );
+			for ( j = 0 ; j < surf->numFrames ; j++ ) {
+				if ( stagingUsed + stride > 32768 ) {
+					GC_ARAM_Write( aramNext + (u32)j * stride - stagingUsed, staging, stagingUsed );
+					stagingUsed = 0;
+				}
+				Com_Memcpy( staging + stagingUsed,
+					(byte *)fsurf + surfOfsXyz + (u32)j * surf->numVerts * 8,
+					(u32)surf->numVerts * 8 );
+				if ( stride > surf->numVerts * 8 ) {
+					memset( staging + stagingUsed + surf->numVerts * 8, 0,
+						stride - surf->numVerts * 8 );
+				}
+				stagingUsed += stride;
+			}
+			if ( stagingUsed ) {
+				GC_ARAM_Write( aramNext + (u32)surf->numFrames * stride - stagingUsed,
+					staging, stagingUsed );
+				stagingUsed = 0;
+			}
+
+			aramNext += (u32)stride * surf->numFrames;
+
+			// find the next surface
+			surf = (md3Surface_t *)( (byte *)surf + surf->ofsEnd );
+			fsurf = (md3Surface_t *)( (byte *)fsurf + surfOfsEnd );
+		}
+
+		free( staging );
+		return qtrue;
+	}
+#else
 	mod->type = MOD_MESH;
 	size = LittleLong(pinmodel->ofsEnd);
 	mod->dataSize += size;
@@ -548,6 +847,7 @@ static qboolean R_LoadMD3 (model_t *mod, int lod, void *buffer, const char *mod_
 	}
     
 	return qtrue;
+#endif
 }
 
 
@@ -1085,6 +1385,13 @@ void R_ModelInit( void ) {
 
 	// leave a space for NULL model
 	tr.numModels = 0;
+
+#ifdef HW_DOL
+	s_md3AramNext = GC_ARAM_ModelBase();
+#ifdef GC_DEBUG
+	s_md3AramPeak = 0;
+#endif
+#endif
 
 	mod = R_AllocModel();
 	mod->type = MOD_BAD;

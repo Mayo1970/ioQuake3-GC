@@ -1036,6 +1036,7 @@ R_Register
 #if defined(HW_DOL) && defined(GC_DEBUG)
 static void GC_TexMem_f( void ) {
 	GXBE_TexHeapReport( "now" );
+	R_MD3AramReport( "now" );
 }
 #endif
 
@@ -1370,6 +1371,7 @@ void RE_EndRegistration( void ) {
 	}
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	GXBE_TexHeapReport( "end registration" );
+	R_MD3AramReport( "end registration" );
 #endif
 }
 
