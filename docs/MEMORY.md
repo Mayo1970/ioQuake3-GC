@@ -562,3 +562,41 @@ Main stack peak 369840 bytes (map load). The release `.elf` has 144 warnings (`m
 | before (main e7a85fd) | 1925872 | 492156 | 7837824 | 10255852 |
 | QGC-47 | 1922296 | 491244 | 6480256 | 8893796 |
 | delta | -3576 | -912 | -1357568 | -1362056 |
+
+## 17. q3dm6 stock fit (QGC-48)
+
+### Cuts (Matt, 2026-11-11)
+
+Measured with `DEBUG=1` (hunk blocks carry a 24-byte debug header), q3dm6, 3 bots.
+
+| Cut | Where | Before | After | Delta |
+|---|---|---:|---:|---:|
+| Zone 3 MB to 2.75 MB (q3dm6 peak 2457804) | malloc | 3145728 | 2883584 | -262144 |
+| Botlib small hunk blocks (up to 512 bytes) packed in 16 KB pools, 4-byte aligned | hunk, q3dm6 | botlib part of 8692600 | | about -279000 |
+| World vertices packed: lightmap u16, normal s8, indices u16 (`st` stays float); `gcWorldVert_t` 32 bytes, was `drawVert_t` 44; face point 28 bytes, was 32 | hunk, `GC rhunk: world` q3dm6 | 2875264 | 2559360 | -315904 |
+| Pak index without file names (32-bit FNV-1a name hash; a hash hit reads the name from the zip directory; file lists read the zip directory) | zone peak, q3dm6 | 2583196 | 2457804 | -125392 |
+
+AAS: not changed. pak4 already ships the stripped q3dm6 `.aas` (522936 bytes, no faces and edges).
+Hunk peak, 64 MB override, q3dm6: 8692600 -> 8097336 (-595264, botlib and world together).
+Map load (boot to end of registration, q3dm1, Dolphin): 124 s -> 132 s; the name reads on each pak hit cost about 6 %.
+
+### Result
+
+Stock 24 MB, `DEBUG=1`, no memory override, Dolphin 5.0-17995, defaults, `devmap <map>`, `cg_thirdPerson 1`.
+
+| Run | Result | Hunk peak (of 8388608) | Zone peak (of 2883584) | Texture heap | Free at the end (arena1 + malloc free) |
+|---|---|---:|---:|---:|---:|
+| q3dm6, 3 bots | loads and plays, frames correct | 7744800 | 2457804 | 2075712 | 413696 + 120280 |
+| q3dm1, 4 bots | loads and plays, frames correct | 5000800 | 2276176 | 1766912 | 704512 + 138392 |
+| q3dm17, 4 bots | loads and plays | 5076940 | 2418380 | 1624672 | 778240 + 206992 |
+
+In stock the hunk has less than 4000000 bytes free after the map load, so cgame prints `Memory is low. Using deferred model.` and bots without a loaded model use a loaded one (also in QGC-47 runs).
+Main stack peak 369816. The release `.elf` has 144 warnings.
+
+### Binary size (release)
+
+| | text | data | bss | dec |
+|---|---:|---:|---:|---:|
+| before (main 0767b1f) | 1922296 | 491244 | 6480256 | 8893796 |
+| QGC-48 | 1927048 | 491556 | 6480288 | 8898892 |
+| delta | +4752 | +312 | +32 | +5096 |
