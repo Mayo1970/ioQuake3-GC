@@ -39,6 +39,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define DEFAULT_CIN_WIDTH	512
 #define DEFAULT_CIN_HEIGHT	512
+#ifdef HW_DOL
+#define GC_CIN_MAX_HEIGHT	256
+#endif
 
 #define ROQ_QUAD			0x1000
 #define ROQ_QUAD_INFO		0x1001
@@ -79,7 +82,11 @@ static	unsigned short		vq8[256*256*4];
 
 
 typedef struct {
+#ifdef HW_DOL
+	byte				linbuf[DEFAULT_CIN_WIDTH*GC_CIN_MAX_HEIGHT*4*2];
+#else
 	byte				linbuf[DEFAULT_CIN_WIDTH*DEFAULT_CIN_HEIGHT*4*2];
+#endif
 	byte				file[65536];
 	short				sqrTable[256];
 
@@ -152,11 +159,17 @@ static qboolean CIN_AllocMem( void ) {
 		+ 256*16*4 * sizeof( *vq2 )
 		+ 256*64*4 * sizeof( *vq4 )
 		+ 256*256*4 * sizeof( *vq8 );
-	cinMem = malloc( size );
-	if ( !cinMem ) {
+	// the resample buffer CIN_RunCinematic takes each frame must fit too
+	if ( Hunk_MemoryRemaining() < size + 256*256*4 + 1024 ) {
 		Com_Printf( "CIN: out of memory (%d bytes)\n", size );
 		return qfalse;
 	}
+	// hold stops FS_FreeFile from clearing the temp block the cinematic lives in
+	cinMem = Hunk_AllocateTempMemory( size );
+	if ( !cinMem ) {
+		return qfalse;
+	}
+	FS_HoldTempMemory();
 	vq2 = (unsigned short *)( cinMem + 1 );
 	vq4 = vq2 + 256*16*4;
 	vq8 = vq4 + 256*64*4;
@@ -176,7 +189,11 @@ static void CIN_FreeMemIfIdle( void ) {
 		cinTable[i].status = FMV_EOF;
 	}
 	if ( cinMem ) {
-		free( cinMem );
+		Hunk_FreeTempMemory( cinMem );
+		FS_ReleaseTempMemory();
+		if ( FS_LoadStack() == 0 ) {
+			Hunk_ClearTempMemory();
+		}
 	}
 	cinMem = NULL;
 	vq2 = NULL;
@@ -1209,6 +1226,20 @@ redump:
 			break;
 		case	ROQ_QUAD_INFO:
 			if (cinTable[currentHandle].numQuads == -1) {
+#ifdef HW_DOL
+				{
+					int w = framedata[0] + framedata[1]*256;
+					int h = framedata[2] + framedata[3]*256;
+
+					// linbuf only holds 512x256; never let a bigger RoQ write it
+					if ( w > DEFAULT_CIN_WIDTH || h > GC_CIN_MAX_HEIGHT ) {
+						Com_Printf( "CIN: %s is %dx%d, larger than 512x256\n", cinTable[currentHandle].fileName, w, h );
+						cinTable[currentHandle].looping = qfalse;
+						cinTable[currentHandle].status = FMV_EOF;
+						break;
+					}
+				}
+#endif
 				readQuadInfo( framedata );
 				setupQuad( 0, 0 );
 				// we need to use CL_ScaledMilliseconds because of the smp mode calls from the renderer
