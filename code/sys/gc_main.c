@@ -72,6 +72,7 @@ int main(int argc, char **argv)
 #endif
 
 	Com_Init(commandLine);
+	IN_Init();
 	NET_Init();
 
 #ifdef GC_DEBUG
