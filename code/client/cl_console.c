@@ -29,7 +29,11 @@ int g_console_field_width = 78;
 
 #define	NUM_CON_TIMES 4
 
+#ifdef HW_DOL
+#define		CON_TEXTSIZE	16384	/* Matt, QGC-47: half the scrollback */
+#else
 #define		CON_TEXTSIZE	32768
+#endif
 typedef struct {
 	qboolean	initialized;
 
