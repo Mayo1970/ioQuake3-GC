@@ -400,7 +400,11 @@ static void ParseFace( dsurface_t *ds, drawVert_t *verts, msurface_t *surf, int 
 	// create the srfSurfaceFace_t
 	sfaceSize = ( size_t ) &((srfSurfaceFace_t *)0)->points[numPoints];
 	ofsIndexes = sfaceSize;
+#ifdef HW_DOL
+	sfaceSize += sizeof( unsigned short ) * numIndexes;
+#else
 	sfaceSize += sizeof( int ) * numIndexes;
+#endif
 
 	cv = ri.Hunk_Alloc( sfaceSize, h_low );
 	cv->surfaceType = SF_FACE;
