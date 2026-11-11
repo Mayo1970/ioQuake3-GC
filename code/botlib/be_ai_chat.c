@@ -243,7 +243,12 @@ void InitConsoleMessageHeap(void)
 
 	if (consolemessageheap) FreeMemory(consolemessageheap);
 	//
+#ifdef HW_DOL
+	/* Matt, QGC-47: bot console message heap, 282656 -> about 70 KB of hunk */
+	max_messages = (int) LibVarValue("max_messages", "256");
+#else
 	max_messages = (int) LibVarValue("max_messages", "1024");
+#endif
 	consolemessageheap = (bot_consolemessage_t *) GetClearedHunkMemory(max_messages *
 												sizeof(bot_consolemessage_t));
 	consolemessageheap[0].prev = NULL;
@@ -2985,11 +2990,15 @@ int BotSetupChatAI(void)
 	file = LibVarString("matchfile", "match.c");
 	matchtemplates = BotLoadMatchTemplates(file);
 	//
+#ifdef HW_DOL
+	/* Matt, QGC-47: no reply chats (no keyboard chat on GameCube); match templates stay for q3_ui team orders. */
+#else
 	if (!LibVarValue("nochat", "0"))
 	{
 		file = LibVarString("rchatfile", "rchat.c");
 		replychats = BotLoadReplyChat(file);
 	} //end if
+#endif
 
 	InitConsoleMessageHeap();
 

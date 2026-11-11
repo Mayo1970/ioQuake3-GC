@@ -143,6 +143,22 @@ void R_LoadJPG(const char *filename, unsigned char **pic, int *width, int *heigh
    */
   cinfo.out_color_space = JCS_RGB;
 
+#ifdef HW_DOL
+  /* Matt, QGC-47: picmip shift first (Upload32 skips it), then the size-cap shift; at most 1/8. */
+  if ( r_gcJpgMaxDim > 0 ) {
+    unsigned int maxSide = cinfo.image_width > cinfo.image_height ? cinfo.image_width : cinfo.image_height;
+    int shift = 0;
+
+    while ( shift < 3 && shift < r_gcJpgPicmipShift && ( maxSide >> ( shift + 1 ) ) >= 1 )
+      shift++;
+    r_gcJpgShift = shift;
+    while ( shift < 3 && ( maxSide >> ( shift + 1 ) ) >= (unsigned int)r_gcJpgMaxDim )
+      shift++;
+    cinfo.scale_num = 1;
+    cinfo.scale_denom = 1 << shift;
+  }
+#endif
+
   /* Step 5: Start decompressor */
 
   (void) jpeg_start_decompress(&cinfo);

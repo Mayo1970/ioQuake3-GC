@@ -34,6 +34,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 */
 
+#ifndef HW_DOL
 typedef struct {
 	int		i2;
 	int		facing;
@@ -249,6 +250,11 @@ void RB_ShadowTessEnd( void ) {
 	// reenable writing to the color buffer
 	qglColorMask(rgba[0], rgba[1], rgba[2], rgba[3]);
 }
+#else
+/* Matt, QGC-47: no stencil on GX (stencilBits 0), so the 256 KB edge tables are not built. */
+void RB_ShadowTessEnd( void ) {
+}
+#endif
 
 
 /*

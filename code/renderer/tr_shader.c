@@ -21,9 +21,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 #include "tr_local.h"
 
+#ifdef HW_DOL
+#include <malloc.h>
+#include "../sys/gc_aram.h"
+#endif
+
 // tr_shader.c -- this file deals with the parsing and definition of shaders
 
+#ifndef HW_DOL
 static char *s_shaderText;
+#endif
 
 // the shader is parsed into these global variables, then copied into
 // dynamically allocated memory if it is valid.
@@ -35,7 +42,13 @@ static	texModInfo_t	texMods[MAX_SHADER_STAGES][TR_MAX_TEXMODS];
 static	shader_t*		hashTable[FILE_HASH_SIZE];
 
 #define MAX_SHADERTEXT_HASH		2048
+#ifdef HW_DOL
+typedef struct { int ofs; int len; } gcShaderText_t;	/* one shader block in ARAM; len 0 ends a list */
+static gcShaderText_t *shaderTextHashTable[MAX_SHADERTEXT_HASH];
+static char *s_shaderStage;	/* 32-byte aligned DMA buffer for one block */
+#else
 static char **shaderTextHashTable[MAX_SHADERTEXT_HASH];
+#endif
 
 /*
 ================
@@ -2321,7 +2334,28 @@ If found, it will return a valid shader
 =====================
 */
 static char *FindShaderInShaderText( const char *shadername ) {
+#ifdef HW_DOL
+	char *token, *p;
 
+	int i, hash;
+
+	hash = generateHashValue(shadername, MAX_SHADERTEXT_HASH);
+	if ( !shaderTextHashTable[hash] ) return NULL;
+
+	/* Returned pointer stays valid until the next call; ParseShader uses it before any other call. */
+	for ( i = 0; shaderTextHashTable[hash][i].len; i++ ) {
+		int ofs = shaderTextHashTable[hash][i].ofs;
+		int len = shaderTextHashTable[hash][i].len;
+		int start = ofs & ~31;
+		int end = ( ofs + len + 31 ) & ~31;
+		GC_ARAM_Read( s_shaderStage, GC_ARAM_ShaderBase() + start, end - start );
+		p = s_shaderStage + ( ofs - start );
+		p[len] = '\0';
+		token = COM_ParseExt( &p, qtrue );
+		if ( !Q_stricmp( token, shadername ) ) return p;
+	}
+	return NULL;
+#else
 	char *token, *p;
 
 	int i, hash;
@@ -2363,6 +2397,7 @@ static char *FindShaderInShaderText( const char *shadername ) {
 	}
 
 	return NULL;
+#endif
 }
 
 
@@ -2887,10 +2922,17 @@ static void ScanAndLoadShaderFiles( void )
 	char *p;
 	int numShaderFiles;
 	int i;
-	char *oldp, *token, *hashMem, *textEnd;
+	char *oldp, *token;
 	int shaderTextHashTableSizes[MAX_SHADERTEXT_HASH], hash, size;
 
 	long sum = 0, summand;
+#ifdef HW_DOL
+	char *text, *textEnd;
+	int textSize, textLen, maxLen, stageSize;
+	gcShaderText_t *hashMem;
+#else
+	char *hashMem, *textEnd;
+#endif
 	// scan for shader files
 	shaderFiles = ri.FS_ListFiles( "scripts", ".shader", &numShaderFiles );
 
@@ -2946,6 +2988,104 @@ static void ScanAndLoadShaderFiles( void )
 	}
 
 	// build single large buffer
+#ifdef HW_DOL
+	/* Matt, QGC-47: shader text in ARAM; the hunk keeps (offset, length) per shader and one DMA buffer. */
+	textSize = ( sum + numShaderFiles*2 + 31 ) & ~31;
+	text = memalign( 32, textSize );
+	if ( !text ) {
+		ri.Error( ERR_FATAL, "ScanAndLoadShaderFiles: no memory for %i bytes", textSize );
+	}
+	Com_Memset( text, 0, textSize );
+	text[ 0 ] = '\0';
+	textEnd = text;
+
+	// free in reverse order, so the temp files are all dumped
+	for ( i = numShaderFiles - 1; i >= 0 ; i-- )
+	{
+		if ( !buffers[i] )
+			continue;
+
+		strcat( textEnd, buffers[i] );
+		strcat( textEnd, "\n" );
+		textEnd += strlen( textEnd );
+		ri.FS_FreeFile( buffers[i] );
+	}
+
+	COM_Compress( text );
+
+	textLen = strlen( text ) + 1;
+	if ( textLen > GC_ARAM_SHADER_SIZE ) {
+		free( text );
+		ri.Error( ERR_FATAL, "ScanAndLoadShaderFiles: %i bytes of shader text do not fit in ARAM", textLen );
+	}
+
+	// free up memory
+	ri.FS_FreeFileList( shaderFiles );
+
+	Com_Memset(shaderTextHashTableSizes, 0, sizeof(shaderTextHashTableSizes));
+	size = 0;
+	maxLen = 0;
+
+	p = text;
+	// look for shader names
+	while ( 1 ) {
+		oldp = p;
+		token = COM_ParseExt( &p, qtrue );
+		if ( token[0] == 0 ) {
+			break;
+		}
+
+		hash = generateHashValue(token, MAX_SHADERTEXT_HASH);
+		shaderTextHashTableSizes[hash]++;
+		size++;
+		SkipBracedSection(&p);
+		if ( p - oldp > maxLen ) {
+			maxLen = p - oldp;
+		}
+	}
+
+	size += MAX_SHADERTEXT_HASH;
+
+	hashMem = ri.Hunk_Alloc( size * sizeof(gcShaderText_t), h_low );
+
+	for (i = 0; i < MAX_SHADERTEXT_HASH; i++) {
+		shaderTextHashTable[i] = hashMem;
+		hashMem += shaderTextHashTableSizes[i] + 1;
+	}
+
+	Com_Memset(shaderTextHashTableSizes, 0, sizeof(shaderTextHashTableSizes));
+
+	p = text;
+	// look for shader names
+	while ( 1 ) {
+		oldp = p;
+		token = COM_ParseExt( &p, qtrue );
+		if ( token[0] == 0 ) {
+			break;
+		}
+
+		hash = generateHashValue(token, MAX_SHADERTEXT_HASH);
+		SkipBracedSection(&p);
+		shaderTextHashTable[hash][shaderTextHashTableSizes[hash]].ofs = oldp - text;
+		shaderTextHashTable[hash][shaderTextHashTableSizes[hash]].len = p - oldp;
+		shaderTextHashTableSizes[hash]++;
+	}
+
+	stageSize = ( ( maxLen + 64 ) + 31 ) & ~31;
+	s_shaderStage = ri.Hunk_Alloc( stageSize + 64, h_low );
+	s_shaderStage = (char *)( ( (intptr_t)s_shaderStage + 31 ) & ~31 );
+
+	if ( textSize > GC_ARAM_SHADER_SIZE ) {
+		free( text );
+		ri.Error( ERR_FATAL, "ScanAndLoadShaderFiles: %i bytes of shader text do not fit in ARAM", textLen );
+	}
+	GC_ARAM_Write( GC_ARAM_ShaderBase(), text, textSize );
+	free( text );
+
+#ifdef GC_DEBUG
+	ri.Printf( PRINT_ALL, "GC shader text: %i bytes in ARAM, %i shaders, stage %i\n", textLen, size - MAX_SHADERTEXT_HASH, stageSize );
+#endif
+#else
 	s_shaderText = ri.Hunk_Alloc( sum + numShaderFiles*2, h_low );
 	s_shaderText[ 0 ] = '\0';
 	textEnd = s_shaderText;
@@ -3009,6 +3149,7 @@ static void ScanAndLoadShaderFiles( void )
 
 		SkipBracedSection(&p);
 	}
+#endif
 
 	return;
 

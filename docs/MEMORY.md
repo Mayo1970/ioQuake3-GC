@@ -499,3 +499,66 @@ Renderer world data is unchanged (q3dm1 1730720, q3dm6 3732032, q3dm17 1908000).
 | before (main 8719785) | 1924240 | 491648 | 8231040 | 10646928 |
 | QGC-46 | 1925872 | 492156 | 7837824 | 10255852 |
 | delta | +1632 | +508 | -393216 | -391076 |
+
+## 16. BSS diet 2 and stock fit (QGC-47)
+
+### Cuts (Matt, 2026-11-11)
+
+| Cut | Where | Before | After | Delta |
+|---|---|---:|---:|---:|
+| Stencil shadow edge tables (GX has no stencil) | BSS `edgeDefs`, `numEdgeDefs`, `facing` (tr_shadows.c) | 268000 | 0 | -268000 |
+| `MAX_SFX` 4096 to 1024 (614 .wav files in the paks) | BSS `s_knownSfx` | 393216 | 98304 | -294912 |
+| `va()` slots 2 x 32000 to 2 x 8192, 4 copies | BSS `string` (q_shared.c) | 256000 | 65536 | -190464 |
+| `MAX_FONTS` 6 to 1 | BSS `registeredFont` | 123288 | 20548 | -102740 |
+| qagame `POOLSIZE` 256 KB to 128 KB (use at most 60800) | BSS `memoryPool` | 262144 | 131072 | -131072 |
+| q3_ui `POOLSIZE` 128 KB to 64 KB (use 6336) | BSS `memoryPool` | 131072 | 65536 | -65536 |
+| `MAX_PARTICLES` 1024 to 256 | BSS `particles` | 126976 | 31744 | -95232 |
+| `MAX_GLOBALSERVERS` 128 to 32 (no network) | BSS `g_globalserverlist` | 97280 | 24320 | -72960 |
+| `CON_TEXTSIZE` 32768 to 16384 | BSS `con` | 65608 | 32840 | -32768 |
+| `SERVER_MAXBANS` 1024 to 64 | BSS `serverBans` | 40960 | 2560 | -38400 |
+| Main stack 512 KB to 448 KB (peak 369840) | BSS `s_gcMainStack` | 524288 | 458752 | -65536 |
+| Small zone 512 KB to 128 KB (peak 69924) | malloc | 524288 | 131072 | -393216 |
+| Hunk reserve: textures 2.25 + GX FIFO 0.25 MB, no sound part | clamp in `Com_InitHunkMemory` | 4980736 | 2621440 | hunk 6 to 8 MB in stock |
+| One PVS: renderer uses the collision vis (`re.SetWorldVisData`) | hunk, q3dm6 | 856768 | 0 | -856768 |
+| Shader script text in ARAM; hunk keeps (offset, length) per shader | hunk | 591040 | 55872 | -535168 |
+| No renderer restart in `SV_SpawnServer` (its `R_Init` hunk stayed under the mark) | hunk, every map | 584448 | 0 | -584448 |
+| No bot reply chats (`rchat.c`) | hunk, every map with bots | 582912 | 0 | -582912 |
+| Bot console message heap `max_messages` 1024 to 256 | hunk | 282656 | 70664 | -211992 |
+| Snapshot ring `sv_maxclients x 2 x 64` (was x 4 x 64) | hunk, 8 clients | 426016 | 213008 | -213008 |
+| CMPR on (QGC-17 rule) and texture cap 256x256 | texture heap, q3dm6 | 3290176 | 2101856 | -1188320 |
+| JPGs decode at the uploaded size (picmip and cap shift in libjpeg) | decode buffer, 512x512 picmip JPG | 1048576 | 65536 | -983040 |
+
+Not changed: entity arrays (`g_entities`, `cg_entities`, `cl`), `MAX_GENTITIES`, `MAX_CLIENTS`, snapshot and parse entity limits.
+The `va()` buffers stay one per module: the native modules cannot call into the engine, and a shared ring could be overwritten across a trap call.
+
+### ARAM map
+
+| Region | Address | Bytes |
+|---|---|---:|
+| models (MD3 frames) | 0x4000 | 9437184 |
+| shader script text | 0x904000 | 1048576 (423073 used) |
+| sound | 0xa04000 | 6275072 |
+
+### Result
+
+Stock 24 MB, `DEBUG=1`, no memory override, Dolphin 5.0-17995, defaults (`com_hunkMegs 8`, `r_picmip 2`), `devmap <map>`, `cg_thirdPerson 1`.
+
+| Run | Result | Hunk peak (of 8388608) | Zone peak | Texture heap | Free at the end (arena1 + malloc free) |
+|---|---|---:|---:|---:|---:|
+| boot to the main menu | menu renders | 1143124 | 266188 | 798816 | 1220608 + 389624 |
+| q3dm1, 4 bots | loads and plays, frames correct | 5398848 | 2401568 | 1766912 | 442368 + 176032 |
+| q3dm17, 4 bots | loads and plays, frames correct | 5361644 | 2543772 | 1624672 | 655360 + 105512 |
+| q3dm6, 3 bots | fails: `R_ImageMalloc: failed on 262144 bytes` | n/a | n/a | n/a | n/a |
+
+64 MB override hunk peaks before QGC-47 (QGC-46): q3dm1 8612920, q3dm17 8404248, q3dm6 12297816.
+The q3dm6 hunk peak before parts D and E was 9864024 with 3 or 4 bots (the peak is in the load), so fewer bots do not help.
+q3dm6 moves to its own task. Its largest hunk users: botlib 2.09 MB (AAS 829952, 14153 small allocations), renderer world about 2.8 MB, collision about 1.9 MB.
+Main stack peak 369840 bytes (map load). The release `.elf` has 144 warnings (`main` 146).
+
+### Binary size (release)
+
+| | text | data | bss | dec |
+|---|---:|---:|---:|---:|
+| before (main e7a85fd) | 1925872 | 492156 | 7837824 | 10255852 |
+| QGC-47 | 1922296 | 491244 | 6480256 | 8893796 |
+| delta | -3576 | -912 | -1357568 | -1362056 |

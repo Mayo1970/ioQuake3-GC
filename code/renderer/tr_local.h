@@ -1115,6 +1115,12 @@ extern	cvar_t	*r_singleShader;				// make most world faces use default shader
 extern	cvar_t	*r_roundImagesDown;
 extern	cvar_t	*r_colorMipLevels;				// development aid to see texture mip usage
 extern	cvar_t	*r_picmip;						// controls picmip values
+#ifdef HW_DOL
+extern int r_gcJpgMaxDim;
+extern int r_gcJpgPicmipShift;
+extern int r_gcJpgShift;
+extern int r_gcPicmipBias;
+#endif
 extern	cvar_t	*r_finish;
 extern	cvar_t	*r_drawBuffer;
 extern	cvar_t	*r_swapInterval;

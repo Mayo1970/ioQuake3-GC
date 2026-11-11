@@ -10,14 +10,45 @@
 #include <ogc/system.h>
 #endif
 
-/* libogc's 128 KB main stack overflows in map load; 512 KB as in the Wii port. */
-static unsigned char s_gcMainStack[512 * 1024] __attribute__((aligned(8)));
+/* libogc's 128 KB main stack overflows in map load; 448 KB: measured peak 369816 bytes (Matt, QGC-47). */
+static unsigned char s_gcMainStack[448 * 1024] __attribute__((aligned(8)));
 void *__ppc_main_sp __attribute__((section(".sdata"))) = &s_gcMainStack[sizeof(s_gcMainStack)];
+
+#ifdef GC_DEBUG
+int GC_StackSize( void ) {
+	return sizeof( s_gcMainStack );
+}
+
+int GC_StackPeak( void ) {
+	int size = sizeof( s_gcMainStack );
+	int i;
+
+	for ( i = 0; i < size; i++ ) {
+		if ( s_gcMainStack[i] != 0xA5 ) {
+			return size - i;
+		}
+	}
+	return 0;
+}
+#endif
 
 int main(int argc, char **argv)
 {
 	char commandLine[MAX_STRING_CHARS] = { 0 };
 	int i;
+
+#ifdef GC_DEBUG
+	unsigned char *sp = (unsigned char *)__builtin_frame_address( 0 );
+
+	/* Fill the unused stack so GC_StackPeak can find the deepest use (meminfo). */
+	if ( sp >= s_gcMainStack && sp < s_gcMainStack + sizeof( s_gcMainStack ) ) {
+		int fill = ( sp - s_gcMainStack ) - 4096;
+
+		if ( fill > 0 ) {
+			memset( s_gcMainStack, 0xA5, fill );
+		}
+	}
+#endif
 
 	GC_WaitForStorage(argc, argv);
 

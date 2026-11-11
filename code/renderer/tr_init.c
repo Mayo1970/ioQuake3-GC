@@ -198,8 +198,8 @@ static void InitOpenGL( void )
 #ifdef HW_DOL
 		GLimp_Init();
 
-		/* GX supports up to 1024x1024 textures; don't query GL */
-		glConfig.maxTextureSize = 1024;
+		/* Matt, QGC-47: cap textures at 256x256 to save memory; GX itself takes 1024. */
+		glConfig.maxTextureSize = 256;
 		glConfig.textureEnvAddAvailable = qtrue;
 #else
 		GLint		temp;

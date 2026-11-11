@@ -69,7 +69,11 @@ int   		s_paintedtime; 		// sample PAIRS
 
 // MAX_SFX may be larger than MAX_SOUNDS because
 // of custom player sounds
+#ifdef HW_DOL
+#define		MAX_SFX			1024	/* Matt, QGC-47: the Q3A paks hold 614 .wav files */
+#else
 #define		MAX_SFX			4096
+#endif
 sfx_t		s_knownSfx[MAX_SFX];
 int			s_numSfx = 0;
 

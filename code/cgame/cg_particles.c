@@ -141,7 +141,11 @@ static float	shaderAnimSTRatio[MAX_SHADER_ANIMS] = {
 #ifdef WOLF_PARTICLES
 #define		MAX_PARTICLES	1024 * 8
 #else
+#ifdef HW_DOL
+#define		MAX_PARTICLES	256	/* Matt, QGC-47: baseq3 uses particles only for rocket explosions */
+#else
 #define		MAX_PARTICLES 1024
+#endif
 #endif
 
 cparticle_t	*active_particles, *free_particles;

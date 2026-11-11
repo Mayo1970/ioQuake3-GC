@@ -38,6 +38,11 @@ void *R_ImageMalloc( int size ) {
 void R_ImageFree( void *ptr ) {
 	free( ptr );
 }
+
+int r_gcJpgMaxDim;
+int r_gcJpgPicmipShift;	/* in: picmip shift the decoder may take over (0 = none) */
+int r_gcJpgShift;	/* out: picmip shift the decoder took */
+int r_gcPicmipBias;	/* Upload32 subtracts this from r_picmip */
 #endif
 
 static byte			 s_intensitytable[256];
@@ -555,8 +560,13 @@ static void Upload32( unsigned *data,
 	// perform optional picmip operation
 	//
 	if ( picmip ) {
+#ifdef HW_DOL
+		scaled_width >>= ( r_picmip->integer - r_gcPicmipBias );
+		scaled_height >>= ( r_picmip->integer - r_gcPicmipBias );
+#else
 		scaled_width >>= r_picmip->integer;
 		scaled_height >>= r_picmip->integer;
+#endif
 	}
 
 	//
@@ -1050,6 +1060,24 @@ image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmi
 	//
 	// load the pic from disk
 	//
+#ifdef HW_DOL
+	/* Decode JPGs at the uploaded size: picmip shift first, then the size cap (Matt, QGC-47). */
+	r_gcJpgMaxDim = glConfig.maxTextureSize;
+	r_gcJpgPicmipShift = allowPicmip ? r_picmip->integer : 0;
+	r_gcJpgShift = 0;
+	R_LoadImage( name, &pic, &width, &height );
+	r_gcJpgMaxDim = 0;
+	r_gcJpgPicmipShift = 0;
+	if ( pic == NULL ) {
+		return NULL;
+	}
+
+	r_gcPicmipBias = allowPicmip ? r_gcJpgShift : 0;
+	image = R_CreateImage( ( char * ) name, pic, width, height, mipmap, allowPicmip, glWrapClampMode );
+	r_gcPicmipBias = 0;
+	R_IMAGE_FREE( pic );
+	return image;
+#else
 	R_LoadImage( name, &pic, &width, &height );
 	if ( pic == NULL ) {
 		return NULL;
@@ -1058,6 +1086,7 @@ image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmi
 	image = R_CreateImage( ( char * ) name, pic, width, height, mipmap, allowPicmip, glWrapClampMode );
 	R_IMAGE_FREE( pic );
 	return image;
+#endif
 }
 
 

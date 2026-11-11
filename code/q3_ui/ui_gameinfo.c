@@ -31,7 +31,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // arena and bot info
 //
 
+#ifdef HW_DOL
+#define POOLSIZE	(64 * 1024)	/* Matt, QGC-47: arena and bot info strings */
+#else
 #define POOLSIZE	128 * 1024
+#endif
 
 int				ui_numBots;
 static char		*ui_botInfos[MAX_BOTS];
@@ -812,4 +816,8 @@ void UI_InitGameinfo( void ) {
 	UI_LoadBots();
 
 	uis.demoversion = qfalse;
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	trap_Print( va( "GC ui pool: %i of %i\n", allocPoint, POOLSIZE ) );
+#endif
 }

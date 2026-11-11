@@ -3,10 +3,12 @@
 
 #include <gctypes.h>
 
-#define GC_ARAM_MODEL_SIZE  (10 * 1024 * 1024)   /* Matt, QGC-45; sound gets the rest */
+#define GC_ARAM_MODEL_SIZE  (9 * 1024 * 1024)   /* Matt, QGC-45/47; then 1 MB shader text, sound gets the rest */
+#define GC_ARAM_SHADER_SIZE (1024 * 1024)
 
 void GC_ARAM_Init(void);
 u32  GC_ARAM_ModelBase(void);
+u32  GC_ARAM_ShaderBase(void);
 u32  GC_ARAM_SoundBase(void);
 u32  GC_ARAM_SoundSize(void);
 void GC_ARAM_Write(u32 aramAddr, void *src, u32 len);

@@ -46,8 +46,8 @@ int demo_protocols[] =
 #define MIN_COMHUNKMEGS		6
 #define DEF_COMHUNKMEGS 	8
 #define DEF_COMZONEMEGS		3
-/* Free MEM1 kept out of the hunk: textures 3.00 + sound 1.50 + GX FIFO 0.25 MB (docs/MEMORY.md, section 5). */
-#define GC_HUNK_RESERVE		(4980736)
+/* Free MEM1 kept out of the hunk: textures 2.25 + GX FIFO 0.25 MB (Matt, QGC-47; sound budget is QGC-21/22). */
+#define GC_HUNK_RESERVE		(2621440)
 /* malloc header and the hunk's 31-byte alignment pad. */
 #define GC_HUNK_SLACK		(65536)
 #else
@@ -61,6 +61,8 @@ int demo_protocols[] =
 #if defined(HW_DOL) && defined(GC_DEBUG)
 static int gc_hunkPeak, gc_hunkPeakLow, gc_hunkPeakHigh;
 static int gc_zonePeak, gc_smallZonePeak;
+int GC_StackPeak( void );
+int GC_StackSize( void );
 #endif
 
 int		com_argc;
@@ -1392,6 +1394,7 @@ void Com_Meminfo_f( void ) {
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	Com_Printf( "GC peak: hunk %i (low %i, high %i) of %i\n", gc_hunkPeak, gc_hunkPeakLow, gc_hunkPeakHigh, s_hunkTotal );
 	Com_Printf( "GC peak: zone %i of %i, small zone %i of %i\n", gc_zonePeak, s_zoneTotal, gc_smallZonePeak, s_smallZoneTotal );
+	Com_Printf( "GC stack: peak %i of %i\n", GC_StackPeak(), GC_StackSize() );
 #endif
 }
 
@@ -1450,7 +1453,11 @@ Com_InitZoneMemory
 =================
 */
 void Com_InitSmallZoneMemory( void ) {
+#ifdef HW_DOL
+	s_smallZoneTotal = 128 * 1024;	/* Matt, QGC-47: measured small zone peak is 69892 bytes */
+#else
 	s_smallZoneTotal = 512 * 1024;
+#endif
 	smallzone = calloc( s_smallZoneTotal, 1 );
 	if ( !smallzone ) {
 		Com_Error( ERR_FATAL, "Small zone data failed to allocate %1.1f megs", (float)s_smallZoneTotal / (1024*1024) );

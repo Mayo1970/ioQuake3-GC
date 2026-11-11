@@ -388,6 +388,10 @@ void CL_CM_LoadMap( const char *mapname ) {
 	int		checksum;
 
 	CM_LoadMap( mapname, qtrue, &checksum );
+#ifdef HW_DOL
+	/* Matt, QGC-47: the renderer uses the collision PVS instead of its own copy. */
+	re.SetWorldVisData( CM_ClusterPVS( -1 ) );
+#endif
 }
 
 /*

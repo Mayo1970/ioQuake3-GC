@@ -246,7 +246,11 @@ typedef struct {
 	netadr_t	authorizeAddress;			// for rcon return messages
 } serverStatic_t;
 
+#ifdef HW_DOL
+#define SERVER_MAXBANS	64	/* Matt, QGC-47: no network on HW_DOL */
+#else
 #define SERVER_MAXBANS	1024
+#endif
 // Structure for managing bans
 typedef struct
 {
