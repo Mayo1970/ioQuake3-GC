@@ -433,8 +433,12 @@ void SV_SpawnServer( char *server, qboolean killBots ) {
 	Hunk_Clear();
 
 #ifndef DEDICATED
+#ifdef HW_DOL
+	/* Matt, QGC-47: CL_FlushMemory starts the renderer after the hunk mark; a start here leaks its R_Init hunk. */
+#else
 	// Restart renderer
 	CL_StartHunkUsers( qtrue );
+#endif
 #endif
 
 	// clear collision map data
