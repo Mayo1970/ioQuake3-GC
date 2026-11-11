@@ -411,13 +411,6 @@ static void gx_encode_level(void *dst, const void *src, int w, int h, u8 fmt)
         gx_swizzle_rgb565(dst, src, w, h);
 }
 
-static qboolean gx_want_cmpr(qboolean alpha, qboolean mipmap, int w, int h)
-{
-    /* CMPR off: Matt, QGC-17 (docs/MEMORY.md). */
-    return qfalse;
-}
-
-#ifdef GC_DEBUG
 /* The Xbox port's storage policy: picmip'd art and big 2D art compress. GX has no
  * DXT5, so alpha stays RGB5A3; builtins (*lightmap, *scratch...) stay 16-bit too. */
 static qboolean gx_cmpr_candidate(qboolean alpha, qboolean mipmap, int w, int h)
@@ -430,7 +423,12 @@ static qboolean gx_cmpr_candidate(qboolean alpha, qboolean mipmap, int w, int h)
         return qtrue;
     return !mipmap && w >= 256 && h >= 256;
 }
-#endif
+
+static qboolean gx_want_cmpr(qboolean alpha, qboolean mipmap, int w, int h)
+{
+    /* CMPR on (Matt, QGC-47) with the QGC-17 rule: opaque picmip art and opaque 2D art of 256x256 or more. */
+    return gx_cmpr_candidate( alpha, mipmap, w, h );
+}
 
 /* Does the GL internal format Upload32 chose carry alpha? */
 static qboolean gx_format_has_alpha(int glInternalFormat)
