@@ -819,6 +819,8 @@ void		R_Modellist_f (void);
 
 #if defined(HW_DOL) && defined(GC_DEBUG)
 void		R_MD3AramReport( const char *where );
+extern int	r_gcDrawSurfPeak;
+extern int	r_gcCmdPeak;
 #endif
 
 //====================================================
@@ -828,7 +830,11 @@ extern	refimport_t		ri;
 #define	MAX_SKINS				1024
 
 
+#ifdef HW_DOL
+#define	MAX_DRAWSURFS			0x4000	/* Matt, QGC-46; must stay a power of two (DRAWSURF_MASK) */
+#else
 #define	MAX_DRAWSURFS			0x10000
+#endif
 #define	DRAWSURF_MASK			(MAX_DRAWSURFS-1)
 
 /*
@@ -1621,7 +1627,11 @@ RENDERER BACK END COMMAND QUEUE
 =============================================================
 */
 
+#ifdef HW_DOL
+#define	MAX_RENDER_COMMANDS	0x20000	/* Matt, QGC-46: a full console is about 94 KB of stretch-pic commands */
+#else
 #define	MAX_RENDER_COMMANDS	0x40000
+#endif
 
 typedef struct {
 	byte	cmds[MAX_RENDER_COMMANDS];

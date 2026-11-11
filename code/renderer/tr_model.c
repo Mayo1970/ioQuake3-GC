@@ -109,7 +109,12 @@ qhandle_t R_RegisterMD3(const char *name, model_t *mod)
 		fext++;
 	}
 
+#ifdef HW_DOL
+	/* One LOD only (Matt, QGC-46): halves model ARAM; the hunk keeps one frame/tag set per model. */
+	for ( lod = 0 ; lod >= 0 ; lod-- )
+#else
 	for (lod = MD3_MAX_LODS - 1 ; lod >= 0 ; lod--)
+#endif
 	{
 		if(lod)
 			Com_sprintf(namebuf, sizeof(namebuf), "%s_%d.%s", filename, lod, fext);

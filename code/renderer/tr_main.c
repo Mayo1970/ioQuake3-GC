@@ -1369,6 +1369,10 @@ A view may be either the actual camera view,
 or a mirror / remote location
 ================
 */
+#if defined(HW_DOL) && defined(GC_DEBUG)
+int		r_gcDrawSurfPeak;
+#endif
+
 void R_RenderView (viewParms_t *parms) {
 	int		firstDrawSurf;
 
@@ -1392,6 +1396,12 @@ void R_RenderView (viewParms_t *parms) {
 	R_SetupProjection(&tr.viewParms, r_zproj->value, qtrue);
 
 	R_GenerateDrawSurfs();
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	if ( tr.refdef.numDrawSurfs > r_gcDrawSurfPeak ) {
+		r_gcDrawSurfPeak = tr.refdef.numDrawSurfs;
+	}
+#endif
 
 	R_SortDrawSurfs( tr.refdef.drawSurfs + firstDrawSurf, tr.refdef.numDrawSurfs - firstDrawSurf );
 

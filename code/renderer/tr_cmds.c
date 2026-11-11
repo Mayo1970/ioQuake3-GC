@@ -114,6 +114,10 @@ R_IssueRenderCommands
 int	c_blockedOnRender;
 int	c_blockedOnMain;
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+int		r_gcCmdPeak;
+#endif
+
 void R_IssueRenderCommands( qboolean runPerformanceCounters ) {
 	renderCommandList_t	*cmdList;
 
@@ -121,6 +125,12 @@ void R_IssueRenderCommands( qboolean runPerformanceCounters ) {
 	assert(cmdList);
 	// add an end-of-list command
 	*(int *)(cmdList->cmds + cmdList->used) = RC_END_OF_LIST;
+
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	if ( cmdList->used > r_gcCmdPeak ) {
+		r_gcCmdPeak = cmdList->used;
+	}
+#endif
 
 	// clear it out, in case this is a sync and not a buffer flip
 	cmdList->used = 0;
