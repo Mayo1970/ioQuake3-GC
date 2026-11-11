@@ -2023,6 +2023,8 @@ void RE_LoadWorldMap( const char *name ) {
 		ri.Hunk_FreeTempMemory( block );
 		fileBase = NULL;
 
+		if ( tr.externalVisData && header.lumps[LUMP_VISIBILITY].filelen > 8 )
+			header.lumps[LUMP_VISIBILITY].filelen = 8; /* Shared PVS: read only numClusters and clusterBytes. */
 		ids[0] = LUMP_VISIBILITY;
 		block = R_BspReadLumps( &header, 1, ids, lumps );
 		R_LoadVisibility( &lumps[0] );
