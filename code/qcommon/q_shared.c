@@ -987,7 +987,11 @@ varargs versions of all text functions.
 */
 char	* QDECL va( char *format, ... ) {
 	va_list		argptr;
+#ifdef HW_DOL
+	static char string[2][8192]; /* Matt, QGC-47: 4 copies (engine + 3 modules); 8192 = BIG_INFO_STRING, longer output truncates */
+#else
 	static char string[2][32000]; // in case va is called by nested functions
+#endif
 	static int	index = 0;
 	char		*buf;
 
