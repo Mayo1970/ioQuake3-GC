@@ -36,6 +36,70 @@ void RE_LoadWorldMap( const char *name );
 static	world_t		s_worldData;
 static	byte		*fileBase;
 
+#ifdef HW_DOL
+static	fileHandle_t	s_bspFile;
+static	int				s_bspPos;
+static	int				s_bspLength;
+
+static void R_BspClose( void ) {
+	if ( s_bspFile ) {
+		FS_FCloseFile( s_bspFile );
+		s_bspFile = 0;
+	}
+}
+
+static void R_BspSeekTo( int ofs ) {
+	if ( ofs == s_bspPos ) {
+		return;
+	}
+	if ( ofs > s_bspPos ) {
+		FS_Seek( s_bspFile, ofs - s_bspPos, FS_SEEK_CUR );
+	} else {
+		FS_Seek( s_bspFile, ofs, FS_SEEK_SET );
+	}
+	s_bspPos = ofs;
+}
+
+static byte *R_BspReadLumps( dheader_t *header, int count, const int *lumpIds, lump_t *out ) {
+	int		i, total;
+	byte	*block;
+
+	for ( i = 0 ; i < count ; i++ ) {
+		lump_t *l = &header->lumps[lumpIds[i]];
+		if ( l->fileofs < 0 || l->filelen < 0 || l->fileofs + l->filelen > s_bspLength ) {
+			R_BspClose();
+			ri.Error( ERR_DROP, "RE_LoadWorldMap: bad lump offset" );
+		}
+	}
+
+	total = 0;
+	for ( i = 0 ; i < count ; i++ ) {
+		total += ( header->lumps[lumpIds[i]].filelen + 4 ) & ~3;
+	}
+	block = ri.Hunk_AllocateTempMemory( total );
+	Com_Memset( block, 0, total );
+
+	total = 0;
+	for ( i = 0 ; i < count ; i++ ) {
+		lump_t *l = &header->lumps[lumpIds[i]];
+		out[i].fileofs = total;
+		out[i].filelen = l->filelen;
+		if ( l->filelen > 0 ) {
+			R_BspSeekTo( l->fileofs );
+			if ( FS_Read( block + out[i].fileofs, l->filelen, s_bspFile ) != l->filelen ) {
+				R_BspClose();
+				ri.Error( ERR_DROP, "RE_LoadWorldMap: short read" );
+			}
+			s_bspPos += l->filelen;
+		}
+		total += ( l->filelen + 4 ) & ~3;
+	}
+
+	fileBase = block;
+	return block;
+}
+#endif
+
 int			c_subdivisions;
 int			c_gridVerts;
 
@@ -1792,11 +1856,15 @@ Called directly from cgame
 */
 void RE_LoadWorldMap( const char *name ) {
 	int			i;
+#ifdef HW_DOL
+	dheader_t	header;
+#else
 	dheader_t	*header;
 	union {
 		byte *b;
 		void *v;
 	} buffer;
+#endif
 	byte		*startMarker;
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	int			hunkStart;
@@ -1821,10 +1889,18 @@ void RE_LoadWorldMap( const char *name ) {
 	tr.worldMapLoaded = qtrue;
 
 	// load it
+#ifdef HW_DOL
+	s_bspLength = FS_FOpenFileRead( name, &s_bspFile, qtrue );
+	if ( !s_bspFile || s_bspLength <= 0 ) {
+		R_BspClose();
+		ri.Error (ERR_DROP, "RE_LoadWorldMap: %s not found", name);
+	}
+#else
     ri.FS_ReadFile( name, &buffer.v );
 	if ( !buffer.b ) {
 		ri.Error (ERR_DROP, "RE_LoadWorldMap: %s not found", name);
 	}
+#endif
 
 	// clear tr.world so if the level fails to load, the next
 	// try will not look at the partially loaded version
@@ -1839,6 +1915,30 @@ void RE_LoadWorldMap( const char *name ) {
 	startMarker = ri.Hunk_Alloc(0, h_low);
 	c_gridVerts = 0;
 
+#ifdef HW_DOL
+	if ( s_bspLength < (int)sizeof( dheader_t ) ) {
+		R_BspClose();
+		ri.Error( ERR_DROP, "RE_LoadWorldMap: %s is too short", name );
+	}
+	FS_Seek( s_bspFile, 0, FS_SEEK_SET );
+	if ( FS_Read( &header, sizeof( header ), s_bspFile ) != (int)sizeof( header ) ) {
+		R_BspClose();
+		ri.Error( ERR_DROP, "RE_LoadWorldMap: %s is too short", name );
+	}
+	s_bspPos = sizeof( dheader_t );
+
+	i = LittleLong (header.version);
+	if ( i != BSP_VERSION ) {
+		R_BspClose();
+		ri.Error (ERR_DROP, "RE_LoadWorldMap: %s has wrong version number (%i should be %i)", 
+			name, i, BSP_VERSION);
+	}
+
+	// swap all the lumps
+	for (i=0 ; i<sizeof(dheader_t)/4 ; i++) {
+		((int *)&header)[i] = LittleLong ( ((int *)&header)[i]);
+	}
+#else
 	header = (dheader_t *)buffer.b;
 	fileBase = (byte *)header;
 
@@ -1852,8 +1952,88 @@ void RE_LoadWorldMap( const char *name ) {
 	for (i=0 ; i<sizeof(dheader_t)/4 ; i++) {
 		((int *)header)[i] = LittleLong ( ((int *)header)[i]);
 	}
+#endif
 
 	// load into heap
+/* Lump by lump (Matt, QGC-46): the temp peak is the largest loader's lumps, not the whole BSP. */
+#ifdef HW_DOL
+	{
+		lump_t	lumps[3];
+		byte	*block;
+		int		ids[3];
+
+		ids[0] = LUMP_SHADERS;
+		block = R_BspReadLumps( &header, 1, ids, lumps );
+		R_LoadShaders( &lumps[0] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_LIGHTMAPS;
+		block = R_BspReadLumps( &header, 1, ids, lumps );
+		R_LoadLightmaps( &lumps[0] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_PLANES;
+		block = R_BspReadLumps( &header, 1, ids, lumps );
+		R_LoadPlanes( &lumps[0] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_FOGS;
+		ids[1] = LUMP_BRUSHES;
+		ids[2] = LUMP_BRUSHSIDES;
+		block = R_BspReadLumps( &header, 3, ids, lumps );
+		R_LoadFogs( &lumps[0], &lumps[1], &lumps[2] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_SURFACES;
+		ids[1] = LUMP_DRAWVERTS;
+		ids[2] = LUMP_DRAWINDEXES;
+		block = R_BspReadLumps( &header, 3, ids, lumps );
+		R_LoadSurfaces( &lumps[0], &lumps[1], &lumps[2] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_LEAFSURFACES;
+		block = R_BspReadLumps( &header, 1, ids, lumps );
+		R_LoadMarksurfaces( &lumps[0] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_NODES;
+		ids[1] = LUMP_LEAFS;
+		block = R_BspReadLumps( &header, 2, ids, lumps );
+		R_LoadNodesAndLeafs( &lumps[0], &lumps[1] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_MODELS;
+		block = R_BspReadLumps( &header, 1, ids, lumps );
+		R_LoadSubmodels( &lumps[0] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_VISIBILITY;
+		block = R_BspReadLumps( &header, 1, ids, lumps );
+		R_LoadVisibility( &lumps[0] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_ENTITIES;
+		block = R_BspReadLumps( &header, 1, ids, lumps );
+		R_LoadEntities( &lumps[0] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+
+		ids[0] = LUMP_LIGHTGRID;
+		block = R_BspReadLumps( &header, 1, ids, lumps );
+		R_LoadLightGrid( &lumps[0] );
+		ri.Hunk_FreeTempMemory( block );
+		fileBase = NULL;
+	}
+#else
 	R_LoadShaders( &header->lumps[LUMP_SHADERS] );
 	R_LoadLightmaps( &header->lumps[LUMP_LIGHTMAPS] );
 	R_LoadPlanes (&header->lumps[LUMP_PLANES]);
@@ -1865,13 +2045,18 @@ void RE_LoadWorldMap( const char *name ) {
 	R_LoadVisibility( &header->lumps[LUMP_VISIBILITY] );
 	R_LoadEntities( &header->lumps[LUMP_ENTITIES] );
 	R_LoadLightGrid( &header->lumps[LUMP_LIGHTGRID] );
+#endif
 
 	s_worldData.dataSize = (byte *)ri.Hunk_Alloc(0, h_low) - startMarker;
 
 	// only set tr.world now that we know the entire level has loaded properly
 	tr.world = &s_worldData;
 
+#ifdef HW_DOL
+	R_BspClose();
+#else
     ri.FS_FreeFile( buffer.v );
+#endif
 
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	ri.Printf( PRINT_ALL, "GC rhunk: world %s %i\n", name, hunkStart - Hunk_MemoryRemaining() );
