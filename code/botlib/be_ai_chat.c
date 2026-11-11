@@ -2990,11 +2990,15 @@ int BotSetupChatAI(void)
 	file = LibVarString("matchfile", "match.c");
 	matchtemplates = BotLoadMatchTemplates(file);
 	//
+#ifdef HW_DOL
+	/* Matt, QGC-47: no reply chats (no keyboard chat on GameCube); match templates stay for q3_ui team orders. */
+#else
 	if (!LibVarValue("nochat", "0"))
 	{
 		file = LibVarString("rchatfile", "rchat.c");
 		replychats = BotLoadReplyChat(file);
 	} //end if
+#endif
 
 	InitConsoleMessageHeap();
 
