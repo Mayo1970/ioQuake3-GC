@@ -32,7 +32,11 @@ MULTIPLAYER MENU (SERVER BROWSER)
 #include "ui_local.h"
 
 
+#ifdef HW_DOL
+#define MAX_GLOBALSERVERS		32	/* Matt, QGC-47: no network on HW_DOL (gc_net_null.c) */
+#else
 #define MAX_GLOBALSERVERS		128
+#endif
 #define MAX_PINGREQUESTS		32
 #define MAX_ADDRESSLENGTH		64
 #define MAX_HOSTNAMELENGTH		22

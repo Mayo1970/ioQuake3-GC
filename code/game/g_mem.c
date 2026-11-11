@@ -28,7 +28,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "g_local.h"
 
 
+#ifdef HW_DOL
+#define POOLSIZE	(128 * 1024)	/* Matt, QGC-47: spawn strings; use is measured with game_memory */
+#else
 #define POOLSIZE	(256 * 1024)
+#endif
 
 static char		memoryPool[POOLSIZE];
 static int		allocPoint;
