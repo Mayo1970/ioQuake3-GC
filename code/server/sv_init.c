@@ -274,7 +274,12 @@ static void SV_Startup( void ) {
 		svs.numSnapshotEntities = sv_maxclients->integer * PACKET_BACKUP * 64;
 	} else {
 		// we don't need nearly as many when playing locally
+#ifdef HW_DOL
+		/* Matt, QGC-47: loopback acks each frame; bots read only the newest frame */
+		svs.numSnapshotEntities = sv_maxclients->integer * 2 * 64;
+#else
 		svs.numSnapshotEntities = sv_maxclients->integer * 4 * 64;
+#endif
 	}
 	svs.initialized = qtrue;
 
@@ -352,7 +357,12 @@ void SV_ChangeMaxClients( void ) {
 		svs.numSnapshotEntities = sv_maxclients->integer * PACKET_BACKUP * 64;
 	} else {
 		// we don't need nearly as many when playing locally
+#ifdef HW_DOL
+		/* Matt, QGC-47: loopback acks each frame; bots read only the newest frame */
+		svs.numSnapshotEntities = sv_maxclients->integer * 2 * 64;
+#else
 		svs.numSnapshotEntities = sv_maxclients->integer * 4 * 64;
+#endif
 	}
 }
 
