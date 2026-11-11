@@ -407,3 +407,49 @@ Matt moved the stock fit to new tasks before QGC-18 (model frames in ARAM, rende
 | delta | +496 | +296 | +8192 | +8984 |
 
 The BSS line is `s_gx_texborrowed` (2048 slots, 8192 bytes), the default-texture fallback.
+
+## 14. MD3 vertex frames in ARAM (QGC-45)
+
+### ARAM layout
+
+`code/sys/gc_aram.c` runs `AR_Init(NULL, 0)` and `ARQ_Init()` at boot. All transfers are synchronous `ARQ_PostRequest` calls on 32-byte aligned buffers.
+
+| Part | ARAM address | Bytes |
+|---|---|---:|
+| OS reserve | 0x0000 | 16384 |
+| models (Matt, 2026-11-11) | 0x4000 | 10485760 |
+| sound (QGC-22) | 0xa04000 | 6275072 |
+
+### How it works
+
+- `R_LoadMD3` keeps the header, frames, tags, surface headers, shaders, triangles and texture coordinates on the hunk.
+  The `md3XyzNormal_t` frames go to ARAM, one frame per `GC_PAD32(numVerts * 8)` bytes. On `HW_DOL`, `md3Surface_t.ofsXyzNormals` holds the ARAM address of frame 0.
+- The model part is a bump allocator. `R_ModelInit` resets it with the model list.
+- When the model part is full, the whole model fails (Matt, 2026-11-11): `R_LoadMD3: <name>: model ARAM full (<n> bytes needed, <n> free)`.
+- `LerpMeshVertexes_scalar` reads the frame (and the old frame when it lerps) into two 8000-byte `memalign(32)` buffers. `DCInvalidateRange` runs after each read.
+- An MD3 whose xyz block is not the last chunk of each surface fails with `has an unsupported layout`. All 372 baseq3 MD3 files pass.
+- Debug builds print `GC aram end registration:` and add a `GC aram now:` line to `gc_texmem`.
+
+### Result
+
+`DEBUG=1 GC_MEM1_MB=64`, headless Dolphin 5.0-17995 with a 64 MB MEM1 override, `com_hunkMegs 24`, `devmap q3dm1`, 4 bots (sarge, anarki, visor, doom; the player is sarge), `cg_thirdPerson 1`. Compared with the QGC-17 part 2 run (same map and bots).
+
+| | QGC-17 | QGC-45 | Delta |
+|---|---:|---:|---:|
+| player models on the hunk (4 sets, all 3 LODs) | 10742944 | 1276608 | -9466336 |
+| other models on the hunk | 320352 | 265024 | -55328 |
+| hunk peak | 20033784 | 10516120 | -9517664 |
+| model ARAM used | - | 9586336 of 10485760 | |
+
+The match ran 15 minutes of emulated play with no error. Frame dumps show the third-person player model and its weapon with correct shape and animation.
+With all 3 LODs, the model part has 899424 bytes left: a fifth player set (about 2.3 MB) does not fit. QGC-46 (one LOD) changes this.
+
+### Binary size (release)
+
+| | text | data | bss | dec |
+|---|---:|---:|---:|---:|
+| before (main 75c0d44) | 1918448 | 490616 | 8230784 | 10639848 |
+| QGC-45 | 1924240 | 491648 | 8231040 | 10646928 |
+| delta | +5792 | +1032 | +256 | +7080 |
+
+Runtime adds two 8000-byte frame buffers (first MD3 draw) and a 32 KB staging buffer during each MD3 load (freed after it).
