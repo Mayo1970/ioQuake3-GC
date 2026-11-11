@@ -86,7 +86,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 FT_Library ftLibrary = NULL;  
 #endif
 
+#ifdef HW_DOL
+#define MAX_FONTS 1	/* Matt, QGC-47: baseq3 cgame and q3_ui never register a TrueType font */
+#else
 #define MAX_FONTS 6
+#endif
 static int registeredFontCount = 0;
 static fontInfo_t registeredFont[MAX_FONTS];
 
