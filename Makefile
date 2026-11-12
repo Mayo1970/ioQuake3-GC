@@ -49,7 +49,7 @@ CLIENT_OBJ	:=	$(addprefix code/client/,cl_avi.o cl_cgame.o cl_cin.o \
 			snd_codec_wav.o)
 
 SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o gc_input.o sys_gc.o gc_dvd.o gc_aram.o \
-			gc_glimp.o gc_null_snddma.o gc_net_null.o gc_modules.o)
+			gc_glimp.o gc_snddma.o gc_net_null.o gc_modules.o)
 
 RENDERER_OBJ	:=	$(addprefix code/renderer/,tr_animation.o \
 			tr_backend.o tr_bsp.o tr_cmds.o tr_curve.o tr_flares.o \

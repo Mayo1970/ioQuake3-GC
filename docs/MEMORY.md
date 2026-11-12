@@ -600,3 +600,15 @@ Main stack peak 369816. The release `.elf` has 144 warnings.
 | before (main 0767b1f) | 1922296 | 491244 | 6480256 | 8893796 |
 | QGC-48 | 1927048 | 491556 | 6480288 | 8898892 |
 | delta | +4752 | +312 | +32 | +5096 |
+
+## 18. Audio output (QGC-21)
+
+Mixer rate 32 kHz (Matt, 2026-11-12): the AI plays only 32 or 48 kHz; 32 kHz needs no resample and costs less CPU and pool space than 48 kHz. `snd_mem.c` resamples each 22050 Hz sound to 32 kHz at load, so the 1 MB `com_soundMegs` pool holds about 16 s of mono sound (22 kHz would hold about 24 s).
+
+| Part | Bytes | Notes |
+|---|---:|---|
+| ring (`memalign`) | 65536 | 32 blocks of 2048 bytes, 0.512 s at 32 kHz |
+
+### Result
+
+To be filled by the supervisor.
