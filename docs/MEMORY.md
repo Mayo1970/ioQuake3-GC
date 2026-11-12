@@ -611,4 +611,12 @@ Mixer rate 32 kHz (Matt, 2026-11-12): the AI plays only 32 or 48 kHz; 32 kHz nee
 
 ### Result
 
-To be filled by the supervisor.
+`DEBUG=1`, Dolphin 5.0-17995 headless, audio dump on, q3dm1, 2 bots.
+
+| Run | Result |
+|---|---|
+| stock 24 MB | `Sound initialization successful.`; map load fails: `R_ImageMalloc: failed on 262144 bytes` (pool 1 MB + ring 64 KB; about 600 KB was free after q3dm1 before) |
+| 64 MB override, `com_hunkMegs 24` | map loads and plays; the DSP dump (32028 Hz) holds game sound for the whole match part |
+
+`CL_InitCGame` on q3dm1 takes 143.6 s (85.6 s with null sound): every sound loads and resamples at map load.
+Stock fit returns with QGC-22 (sound data in ARAM; Matt, 2026-11-12). Release and debug: 144 warnings (`main` 144).
