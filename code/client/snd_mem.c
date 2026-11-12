@@ -211,7 +211,12 @@ static int ResampleSfxRaw( short *sfx, int inrate, int inwidth, int samples, byt
 		srcsample = samplefrac >> 8;
 		samplefrac += fracstep;
 		if( inwidth == 2 ) {
+#ifdef HW_DOL
+			// The WAV loader already swapped samples to native byte order.
+			sample = ((short *)data)[srcsample];
+#else
 			sample = LittleShort ( ((short *)data)[srcsample] );
+#endif
 		} else {
 			sample = (int)( (unsigned char)(data[srcsample]) - 128) << 8;
 		}
@@ -255,7 +260,12 @@ qboolean S_LoadSound( sfx_t *sfx )
 		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is not a 22kHz audio file\n", sfx->soundName);
 	}
 
+#ifdef HW_DOL
+	// Resampling 11 kHz to 32 kHz requires more than twice the input samples.
+	samples = Hunk_AllocateTempMemory((int)(info.samples / ((float)info.rate / dma.speed)) * sizeof(short));
+#else
 	samples = Hunk_AllocateTempMemory(info.samples * sizeof(short) * 2);
+#endif
 
 	sfx->lastTimeUsed = Com_Milliseconds()+1;
 
