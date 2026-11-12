@@ -631,7 +631,7 @@ Stock fit returns with QGC-22 (sound data in ARAM; Matt, 2026-11-12). Release an
 
 | Main-memory part | Allocation | Bytes |
 |---|---|---:|
-| Chunk metadata | `malloc`, 3064 x `sizeof(sndBuffer)` | 3064 x `sizeof(sndBuffer)` |
+| Chunk metadata | `malloc`, 3064 x `sizeof(sndBuffer)` (12) | 36768 |
 | Decoded cache | `memalign` | 131072 |
 | Staging | `memalign` | 12288 |
 | Ring (QGC-21) | | 65536 |
@@ -642,4 +642,14 @@ The ARAM sound region is 6275072 bytes: 3064 chunks, 12.5 million samples, about
 
 ### Result
 
-To be filled by the supervisor.
+- Main-memory sound cost: 1056768 -> 180128 bytes (-876640), plus the 65536-byte ring in both.
+  It is the same on every map: the pool size is fixed by the ARAM region, not by the map.
+- Supervisor fixes (Matt): `ResampleSfxRaw` read the WAV samples with `LittleShort` after the loader
+  had already swapped them (noise on big-endian); the temp sample buffer is sized from the resampled
+  count (11025 Hz sounds at 32 kHz need 2.9x, the buffer had 2x).
+- Dolphin, debug, 64 MB override, q3dm6 with 4 bots: no error; hunk peak 8097336 (as QGC-48).
+- Dolphin, debug, stock 24 MB, q3dm1 with 4 bots: no error; hunk peak 5000800. The QGC-21
+  `R_ImageMalloc` failure is gone. Stock q3dm6 with 4 bots still fails `R_ImageMalloc` (262144): QGC-27.
+- Paging, q3dm1 stock, about 300 s of play: miss (ARAM read + decode) average about 335 us, max 380 us;
+  worst 300-frame window 7272 misses (16 slots thrash with many voices). Prefetch hits 31 %.
+- The DSP audio dump is smooth (no byte-swap noise) and has no silent gap over 20 ms after the map starts.
