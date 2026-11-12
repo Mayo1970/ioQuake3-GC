@@ -32,6 +32,9 @@ OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
 #include "snd_local.h"
+#ifdef HW_DOL
+#include "../sys/gc_sndaram.h"
+#endif
 
 
 /* Intel ADPCM step variation table */
@@ -268,6 +271,7 @@ int S_AdpcmMemoryNeeded( const wavinfo_t *info ) {
 S_AdpcmGetSamples
 ====================
 */
+#ifndef HW_DOL
 void S_AdpcmGetSamples(sndBuffer *chunk, short *to) {
 	adpcm_state_t	state;
 	byte			*out;
@@ -281,6 +285,7 @@ void S_AdpcmGetSamples(sndBuffer *chunk, short *to) {
 	S_AdpcmDecode((char *) out, to, SND_CHUNK_SIZE_BYTE*2, &state );
 }
 
+#endif
 
 /*
 ====================
@@ -294,6 +299,9 @@ void S_AdpcmEncodeSound( sfx_t *sfx, short *samples ) {
 	int				n;
 	sndBuffer		*newchunk, *chunk;
 	byte			*out;
+#ifdef HW_DOL
+	static byte s_encBuf[SND_CHUNK_SIZE_BYTE];
+#endif
 
 	inOffset = 0;
 	count = sfx->soundLength;
@@ -319,10 +327,17 @@ void S_AdpcmEncodeSound( sfx_t *sfx, short *samples ) {
 		chunk->adpcm.index  = state.index;
 		chunk->adpcm.sample = state.sample;
 
+#ifdef HW_DOL
+		out = s_encBuf;
+#else
 		out = (byte *)chunk->sndChunk;
+#endif
 
 		// encode the samples
 		S_AdpcmEncode( samples + inOffset, (char *) out, n, &state );
+#ifdef HW_DOL
+		GC_SndAram_Store(chunk, s_encBuf, (n + 1) / 2);
+#endif
 
 		inOffset += n;
 		count -= n;

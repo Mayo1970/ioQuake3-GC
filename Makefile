@@ -45,11 +45,11 @@ BOTLIB_OBJ	:=	$(addprefix code/botlib/,be_aas_bspq3.o be_aas_cluster.o \
 CLIENT_OBJ	:=	$(addprefix code/client/,cl_avi.o cl_cgame.o cl_cin.o \
 			cl_console.o cl_input.o cl_keys.o cl_main.o cl_net_chan.o \
 			cl_parse.o cl_scrn.o cl_ui.o snd_main.o snd_dma.o snd_mem.o \
-			snd_mix.o snd_adpcm.o snd_wavelet.o snd_codec.o \
+			snd_mix.o snd_adpcm.o snd_codec.o \
 			snd_codec_wav.o)
 
 SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o gc_input.o sys_gc.o gc_dvd.o gc_aram.o \
-			gc_glimp.o gc_snddma.o gc_net_null.o gc_modules.o)
+			gc_glimp.o gc_snddma.o gc_sndaram.o gc_net_null.o gc_modules.o)
 
 RENDERER_OBJ	:=	$(addprefix code/renderer/,tr_animation.o \
 			tr_backend.o tr_bsp.o tr_cmds.o tr_curve.o tr_flares.o \
