@@ -31,6 +31,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "snd_local.h"
 #include "snd_codec.h"
+#ifdef HW_DOL
+#include "../sys/gc_sndaram.h"
+#endif
 
 #ifdef HW_DOL
 #define DEF_COMSOUNDMEGS "1"
@@ -56,6 +59,9 @@ sfx_t *sfxScratchPointer = NULL;
 int	   sfxScratchIndex = 0;
 
 void	SND_free(sndBuffer *v) {
+#ifdef HW_DOL
+	GC_SndAram_Forget(v);
+#endif
 	*(sndBuffer **)v = freelist;
 	freelist = (sndBuffer*)v;
 	inUse += sizeof(sndBuffer);
@@ -82,27 +88,27 @@ void SND_setup(void) {
 	sndBuffer *p, *q;
 	cvar_t	*cv;
 	int scs;
-#ifdef HW_DOL
-	int megs;
-#endif
+
 
 	cv = Cvar_Get( "com_soundMegs", DEF_COMSOUNDMEGS, CVAR_LATCH | CVAR_ARCHIVE );
 
 #ifdef HW_DOL
-	// On the GameCube com_soundMegs counts megabytes; upstream counts units of 1536 chunks (about 3 MB).
-	megs = cv->integer;
-	if ( megs < 1 ) {
-		megs = 1;
-	}
-	scs = ( megs * 1024 * 1024 ) / sizeof( sndBuffer );
+	(void)cv;
+	scs = GC_SndAram_ChunkCount();
 #else
 	scs = (cv->integer*1536);
 #endif
 
 	buffer = malloc(scs*sizeof(sndBuffer) );
+#ifdef HW_DOL
+	if (!buffer) Com_Error(ERR_FATAL, "GC snd: metadata allocation failed (%d bytes)", scs * (int)sizeof(sndBuffer));
+	if (!GC_SndAram_Init(buffer, scs)) Com_Error(ERR_FATAL, "GC snd: ARAM initialization failed");
+	Com_Printf("GC snd: %d chunks, metadata %d bytes\n", scs, scs * (int)sizeof(sndBuffer));
+#else
 	// allocate the stack based hunk allocator
 	sfxScratchBuffer = malloc(SND_CHUNK_SIZE * sizeof(short) * 4);	//Hunk_Alloc(SND_CHUNK_SIZE * sizeof(short) * 4);
 	sfxScratchPointer = NULL;
+#endif
 
 	inUse = scs*sizeof(sndBuffer);
 	p = buffer;;
@@ -118,7 +124,11 @@ void SND_setup(void) {
 
 void SND_shutdown(void)
 {
+#ifdef HW_DOL
+		GC_SndAram_Shutdown();
+#else
 		free(sfxScratchBuffer);
+#endif
 		free(buffer);
 }
 
@@ -129,6 +139,7 @@ ResampleSfx
 resample / decimate to the current source rate
 ================
 */
+#ifndef HW_DOL
 static void ResampleSfx( sfx_t *sfx, int inrate, int inwidth, byte *data, qboolean compressed ) {
 	int		outcount;
 	int		srcsample;
@@ -171,6 +182,8 @@ static void ResampleSfx( sfx_t *sfx, int inrate, int inwidth, byte *data, qboole
 		chunk->sndChunk[part] = sample;
 	}
 }
+
+#endif
 
 /*
 ================
@@ -252,11 +265,16 @@ qboolean S_LoadSound( sfx_t *sfx )
 	// manager to do the right thing for us and page
 	// sound in as needed
 
+#ifdef HW_DOL
+	{
+#else
 	if( sfx->soundCompressed == qtrue) {
+#endif
 		sfx->soundCompressionMethod = 1;
 		sfx->soundData = NULL;
 		sfx->soundLength = ResampleSfxRaw( samples, info.rate, info.width, info.samples, data + info.dataofs );
 		S_AdpcmEncodeSound(sfx, samples);
+#ifndef HW_DOL
 #if 0
 	} else if (info.samples>(SND_CHUNK_SIZE*16) && info.width >1) {
 		sfx->soundCompressionMethod = 3;
@@ -274,6 +292,7 @@ qboolean S_LoadSound( sfx_t *sfx )
 		sfx->soundLength = info.samples;
 		sfx->soundData = NULL;
 		ResampleSfx( sfx, info.rate, info.width, data + info.dataofs, qfalse );
+#endif
 	}
 	
 	Hunk_FreeTempMemory(samples);

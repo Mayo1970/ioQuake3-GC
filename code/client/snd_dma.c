@@ -318,7 +318,14 @@ S_DefaultSound
 void S_DefaultSound( sfx_t *sfx ) {
 	
 	int		i;
-
+#ifdef HW_DOL
+	short buzz[512];
+	for (i = 0; i < 512; i++) buzz[i] = i;
+	sfx->soundLength = 512;
+	sfx->soundCompressionMethod = 1;
+	sfx->soundData = NULL;
+	S_AdpcmEncodeSound(sfx, buzz);
+#else
 	sfx->soundLength = 512;
 	sfx->soundData = SND_malloc();
 	sfx->soundData->next = NULL;
@@ -327,6 +334,7 @@ void S_DefaultSound( sfx_t *sfx ) {
 	for ( i = 0 ; i < sfx->soundLength ; i++ ) {
 		sfx->soundData->sndChunk[i] = i;
 	}
+#endif
 }
 
 /*
@@ -353,7 +361,11 @@ Creates a default buzz sound if the file can't be loaded
 sfxHandle_t	S_Base_RegisterSound( const char *name, qboolean compressed ) {
 	sfx_t	*sfx;
 
+#ifdef HW_DOL
+	compressed = qtrue;
+#else
 	compressed = qfalse;
+#endif
 	if (!s_soundStarted) {
 		return 0;
 	}

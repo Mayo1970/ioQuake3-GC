@@ -23,6 +23,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "client.h"
 #include "snd_local.h"
+#ifdef HW_DOL
+#include "../sys/gc_sndaram.h"
+#endif
 #if idppc_altivec && !defined(MACOS_X)
 #include <altivec.h>
 #endif
@@ -227,6 +230,7 @@ CHANNEL MIXING
 ===============================================================================
 */
 
+#ifndef HW_DOL
 #if idppc_altivec
 static void S_PaintChannelFrom16_altivec( channel_t *ch, const sfx_t *sc, int count, int sampleOffset, int bufferOffset ) {
 	int						data, aoff, boff;
@@ -522,6 +526,77 @@ void S_PaintChannelFromWavelet( channel_t *ch, sfx_t *sc, int count, int sampleO
 	}
 }
 
+#endif
+#ifdef HW_DOL
+void S_PaintChannelFromADPCM( channel_t *ch, sfx_t *sc, int count, int sampleOffset, int bufferOffset ) {
+	int						data, aoff, boff;
+	int						leftvol, rightvol;
+	int						i, j;
+	portable_samplepair_t	*samp;
+	sndBuffer				*chunk;
+	const short				*samples;
+	float					ooff, fdata, fdiv, fleftvol, frightvol;
+
+	samp = &paintbuffer[ bufferOffset ];
+
+	if (ch->doppler) {
+		sampleOffset = sampleOffset*ch->oldDopplerScale;
+	}
+
+	chunk = sc->soundData;
+	while (sampleOffset >= GC_SND_CHUNK_SAMPLES) {
+		chunk = chunk->next;
+		sampleOffset -= GC_SND_CHUNK_SAMPLES;
+		if (!chunk) {
+			chunk = sc->soundData;
+		}
+	}
+	samples = GC_SndAram_Samples( chunk );
+
+	if (!ch->doppler || ch->dopplerScale==1.0f) {
+		leftvol = ch->leftvol*snd_vol;
+		rightvol = ch->rightvol*snd_vol;
+		for ( i=0 ; i<count ; i++ ) {
+			data  = samples[sampleOffset++];
+			samp[i].left += (data * leftvol)>>8;
+			samp[i].right += (data * rightvol)>>8;
+
+			if (sampleOffset == GC_SND_CHUNK_SAMPLES && i + 1 < count) {
+				chunk = chunk->next;
+				if (!chunk) {
+					chunk = sc->soundData;
+				}
+				samples = GC_SndAram_Samples( chunk );
+				sampleOffset = 0;
+			}
+		}
+	} else {
+		fleftvol = ch->leftvol*snd_vol;
+		frightvol = ch->rightvol*snd_vol;
+		ooff = sampleOffset;
+		for ( i=0 ; i<count ; i++ ) {
+			aoff = ooff;
+			ooff = ooff + ch->dopplerScale;
+			boff = ooff;
+			fdata = 0;
+			for (j=aoff; j<boff; j++) {
+				if (j == GC_SND_CHUNK_SAMPLES) {
+					chunk = chunk->next;
+					if (!chunk) {
+						chunk = sc->soundData;
+					}
+					samples = GC_SndAram_Samples( chunk );
+					ooff -= GC_SND_CHUNK_SAMPLES;
+				}
+				fdata  += samples[j&(GC_SND_CHUNK_SAMPLES-1)];
+			}
+			fdiv = 256 * (boff-aoff);
+			samp[i].left += (fdata * fleftvol)/fdiv;
+			samp[i].right += (fdata * frightvol)/fdiv;
+		}
+	}
+}
+#else
 void S_PaintChannelFromADPCM( channel_t *ch, sfx_t *sc, int count, int sampleOffset, int bufferOffset ) {
 	int						data;
 	int						leftvol, rightvol;
@@ -569,6 +644,8 @@ void S_PaintChannelFromADPCM( channel_t *ch, sfx_t *sc, int count, int sampleOff
 	}
 }
 
+#endif
+#ifndef HW_DOL
 void S_PaintChannelFromMuLaw( channel_t *ch, sfx_t *sc, int count, int sampleOffset, int bufferOffset ) {
 	int						data;
 	int						leftvol, rightvol;
@@ -622,6 +699,8 @@ void S_PaintChannelFromMuLaw( channel_t *ch, sfx_t *sc, int count, int sampleOff
 		}
 	}
 }
+
+#endif
 
 /*
 ===================
@@ -682,7 +761,10 @@ void S_PaintChannels( int endtime ) {
 				count = sc->soundLength - sampleOffset;
 			}
 
-			if ( count > 0 ) {	
+			if ( count > 0 ) {
+#ifdef HW_DOL	
+				S_PaintChannelFromADPCM(ch, sc, count, sampleOffset, ltime - s_paintedtime);
+#else	
 				if( sc->soundCompressionMethod == 1) {
 					S_PaintChannelFromADPCM		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
 				} else if( sc->soundCompressionMethod == 2) {
@@ -692,6 +774,7 @@ void S_PaintChannels( int endtime ) {
 				} else {
 					S_PaintChannelFrom16		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
 				}
+#endif
 			}
 		}
 
@@ -719,7 +802,10 @@ void S_PaintChannels( int endtime ) {
 					count = sc->soundLength - sampleOffset;
 				}
 
-				if ( count > 0 ) {	
+				if ( count > 0 ) {
+#ifdef HW_DOL	
+					S_PaintChannelFromADPCM(ch, sc, count, sampleOffset, ltime - s_paintedtime);
+#else	
 					if( sc->soundCompressionMethod == 1) {
 						S_PaintChannelFromADPCM		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
 					} else if( sc->soundCompressionMethod == 2) {
@@ -729,6 +815,7 @@ void S_PaintChannels( int endtime ) {
 					} else {
 						S_PaintChannelFrom16		(ch, sc, count, sampleOffset, ltime - s_paintedtime);
 					}
+#endif
 					ltime += count;
 				}
 			} while ( ltime < end);

@@ -42,12 +42,21 @@ typedef struct adpcm_state {
     char	index;		/* Index into stepsize table */
 } adpcm_state_t;
 
+#ifdef HW_DOL
+#define GC_SND_CHUNK_SAMPLES (SND_CHUNK_SIZE*4)
+typedef struct sndBuffer_s {
+	struct sndBuffer_s *next;
+	int size;
+	adpcm_state_t adpcm;
+} sndBuffer;
+#else
 typedef	struct sndBuffer_s {
 	short					sndChunk[SND_CHUNK_SIZE];
 	struct sndBuffer_s		*next;
     int						size;
 	adpcm_state_t			adpcm;
 } sndBuffer;
+#endif
 
 typedef struct sfx_s {
 	sndBuffer		*soundData;
@@ -220,6 +229,9 @@ void S_Spatialize(channel_t *ch);
 
 // adpcm functions
 int  S_AdpcmMemoryNeeded( const wavinfo_t *info );
+#ifdef HW_DOL
+void S_AdpcmDecode( const char indata[], short *outdata, int len, struct adpcm_state *state );
+#endif
 void S_AdpcmEncodeSound( sfx_t *sfx, short *samples );
 void S_AdpcmGetSamples(sndBuffer *chunk, short *to);
 

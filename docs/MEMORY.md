@@ -620,3 +620,26 @@ Mixer rate 32 kHz (Matt, 2026-11-12): the AI plays only 32 or 48 kHz; 32 kHz nee
 
 `CL_InitCGame` on q3dm1 takes 143.6 s (85.6 s with null sound): every sound loads and resamples at map load.
 Stock fit returns with QGC-22 (sound data in ARAM; Matt, 2026-11-12). Release and debug: 144 warnings (`main` 144).
+
+## 19. Sound in ARAM (QGC-22)
+
+- Every effect is stored as 4-bit ADPCM, with 4096 samples per chunk.
+- ADPCM payloads live in ARAM; main memory holds chunk metadata.
+- A 16-slot LRU cache holds decoded chunks; misses read 2048 bytes and prefetch the next chunk asynchronously.
+- The ADPCM painter uses the 16-bit painter's doppler pitch step.
+- `com_soundMegs` has no effect on GameCube; the pool uses `GC_ARAM_SoundSize()`.
+
+| Main-memory part | Allocation | Bytes |
+|---|---|---:|
+| Chunk metadata | `malloc`, 3064 x `sizeof(sndBuffer)` | 3064 x `sizeof(sndBuffer)` |
+| Decoded cache | `memalign` | 131072 |
+| Staging | `memalign` | 12288 |
+| Ring (QGC-21) | | 65536 |
+
+Before: pool 1048576 bytes plus scratch 8192 bytes.
+
+The ARAM sound region is 6275072 bytes: 3064 chunks, 12.5 million samples, about 392 seconds at 32 kHz.
+
+### Result
+
+To be filled by the supervisor.
