@@ -1149,6 +1149,9 @@ void AAS_InitReachabilityAreas(void)
 {
 	int i, j, numareas, areas[MAX_REACHABILITYPASSAREAS];
 	int numreachareas;
+#ifdef HW_DOL
+	int numtraced;
+#endif
 	aas_reachability_t *reach;
 	vec3_t start, end;
 
@@ -1159,8 +1162,29 @@ void AAS_InitReachabilityAreas(void)
 
 	aasworld.reachabilityareas = (aas_reachabilityareas_t *)
 				GetClearedMemory(aasworld.reachabilitysize * sizeof(aas_reachabilityareas_t));
+#ifdef HW_DOL
+	// Only the four traced travel types write into the index, so size it to them.
+	numtraced = 0;
+	for (i = 0; i < aasworld.reachabilitysize; i++)
+	{
+		switch (aasworld.reachability[i].traveltype & TRAVELTYPE_MASK)
+		{
+			case TRAVEL_BARRIERJUMP:
+			case TRAVEL_WATERJUMP:
+			case TRAVEL_WALKOFFLEDGE:
+			case TRAVEL_GRAPPLEHOOK:
+				numtraced++;
+				break;
+			default:
+				break;
+		}
+	}
+	aasworld.reachabilityareaindex = (int *)
+				GetClearedMemory((numtraced ? numtraced : 1) * MAX_REACHABILITYPASSAREAS * sizeof(int));
+#else
 	aasworld.reachabilityareaindex = (int *)
 				GetClearedMemory(aasworld.reachabilitysize * MAX_REACHABILITYPASSAREAS * sizeof(int));
+#endif
 	numreachareas = 0;
 	for (i = 0; i < aasworld.reachabilitysize; i++)
 	{
