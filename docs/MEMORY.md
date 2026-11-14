@@ -805,3 +805,58 @@ Every remaining failure except q3ctf2 is main memory (malloc), mostly fragmentat
 | delta | +3288 | +396 | +9248 (grid cache 8192 + tags 1024) |
 
 Release and debug: 143 warnings.
+
+### Heap analysis and cuts (Matt, 2026-11-14, branch `task/QGC-27c-heap-frag`)
+
+Debug heap map (`GC_HeapMap`, `gc_heapmap`; walks the newlib heap from `__malloc_sbrk_base` to the top chunk in `__malloc_av_`, with owner tags for textures `T`, image decode `I`, MD3 staging `M` and zlib `Z`) showed real shortage plus 100-180 KB in small holes between textures, not one big hole.
+Tried and dropped: a fixed 256 KB decode scratch block (the 4 target maps then failed on zlib with 22-57 KB left, and it took 256 KB from passing maps).
+A stock-like hunk test (64 MB RAM, `com_hunkMegs 8`) showed no single hunk/malloc split helps every map: q3dm18 and q3ctf1 had 1.6-2.1 MB hunk spare, q3dm7 only 0.15 MB.
+
+Cuts chosen by Matt after a gain analysis (near mipmaps and a forced keel model save nothing: filtering only, and stock cgame already loads one deferred player model):
+
+| Cut | Where | Saving |
+|---|---|---|
+| Player models load their `_2` LOD as the only LOD | `tr_model.c` | sarge `lower` read 593972 -> 357980 (hunk temp at load); less hunk and ARAM per model |
+| Decals off (player blob shadow kept); `MAX_MARK_POLYS` 1 | cgame | `cg_markPolys` 73728 BSS + mark shaders |
+| Blood, gibs, brass, smoke trails, lightning impact, impact explosions and sprites not registered or spawned; impact sounds kept | cgame | effect textures, gib/brass/weaphit models, shaders |
+| `MAX_LOCAL_ENTITIES` 512 -> 128 | cgame | `cg_localEntities` 149504 -> 37376 BSS |
+| Items drawn as sprites; non-weapon, non-flag item models and 3D HUD models not registered | cgame | powerup/ammo models about 97 KB hunk |
+
+Release bss 6492928 -> 6299136 (-193792), text 1940000 -> 1923528.
+
+Result: **22 of 30 maps play** (q3dm7 and q3ctf1 added, no map lost). Smallest margin 288640 (q3ctf1), then 342056 (q3dm7); most maps gained about 200 KB.
+
+| Map | Bots | Result | Low free | Hunk peak | Zone peak | Reason |
+|---|---:|---|---:|---:|---:|---|
+| q3dm0 | 1 | plays | 594056 | 6648512 | 1841504 |  |
+| q3dm1 | 1 | plays | 735712 | 4803132 | 1814072 |  |
+| q3dm2 | 1 | plays | 542144 | 5077280 | 1846060 |  |
+| q3dm3 | 2 | plays | 899728 | 4191968 | 1881116 |  |
+| q3dm4 | 3 | plays | 743040 | 6110208 | 2224088 |  |
+| q3dm5 | 2 | plays | 586808 | 5091648 | 1939972 |  |
+| q3dm6 | 5 | plays | 476152 | 7240928 | 2169304 |  |
+| q3dm7 | 4 | plays | 342056 | 7868160 | 2311764 |  |
+| q3dm8 | 4 | plays | 592880 | 6783488 | 2216332 |  |
+| q3dm9 | 4 | fails |  |  |  | malloc: zlib inflate state (`FS_Read: inflate error -4`) |
+| q3dm10 | 3 | plays | 635744 | 5561856 | 2062412 |  |
+| q3dm11 | 4 | fails |  |  |  | malloc: `R_ImageMalloc` 262144 (`textures/sfx/fan.tga`, no picmip), largest 217088 |
+| q3dm12 | 6 | fails |  |  |  | malloc: `R_ImageMalloc` 262144 (`fan.tga`), largest 114688 |
+| q3dm13 | 3 | plays | 508288 | 5688512 | 2059388 |  |
+| q3dm14 | 4 | fails |  |  |  | malloc: zlib inflate state |
+| q3dm15 | 3 | fails |  |  |  | malloc fragmentation: `R_ImageMalloc` 131072, 207472 free, largest 126976 |
+| q3dm16 | 3 | plays | 819152 | 4786624 | 2206956 |  |
+| q3dm17 | 3 | plays | 857240 | 3970532 | 2028996 |  |
+| q3dm18 | 5 | fails |  |  |  | malloc: zlib inflate state on the BSP (backward seek) |
+| q3dm19 | 3 | plays | 487088 | 4335908 | 1914108 |  |
+| q3tourney1 | 1 | plays | 889392 | 5041504 | 1870004 |  |
+| q3tourney2 | 1 | plays | 675632 | 5693024 | 1907328 |  |
+| q3tourney3 | 1 | plays | 749288 | 4334520 | 1911720 |  |
+| q3tourney4 | 1 | plays | 525960 | 4451328 | 1852024 |  |
+| q3tourney5 | 1 | plays | 1030896 | 3388108 | 1749344 |  |
+| q3tourney6 | 1 | plays | 619312 | 4019884 | 1893256 |  |
+| q3ctf1 | 4 | plays | 288640 | 6310496 | 2094012 |  |
+| q3ctf2 | 4 | fails |  |  |  | zone: `Z_Malloc` 126868 (botlib); 64 MB peaks hunk 15702900, zone 3603108 |
+| q3ctf3 | 4 | fails |  |  |  | hunk: `Hunk_Alloc` world surfaces (`tr_bsp.c`) |
+| q3ctf4 | 4 | plays | 711104 | 4564772 | 2202664 |  |
+
+Release and debug: 143 warnings.
