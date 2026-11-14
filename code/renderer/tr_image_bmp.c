@@ -47,7 +47,9 @@ void R_LoadBMP( const char *name, byte **pic, int *width, int *height )
 	int		columns, rows;
 	unsigned	numPixels;
 	byte	*pixbuf;
+	#ifndef HW_DOL
 	int		row, column;
+	#endif
 	byte	*buf_p;
 	byte	*end;
 	union {
@@ -174,6 +176,48 @@ void R_LoadBMP( const char *name, byte **pic, int *width, int *height )
 	  ri.Error (ERR_DROP, "LoadBMP: file truncated (%s)", name);
 	}
 
+#ifdef HW_DOL
+	{
+		int shift = R_GCImageShift( columns, rows ), block = 1 << shift;
+		int outWidth = columns >> shift, outHeight = rows >> shift;
+		int sourceRow, x, bytes = bmpHeader.bitsPerPixel / 8;
+		unsigned int stride = ( (unsigned int)columns * bytes + 3 ) & ~3U;
+		byte *band;
+		if ( stride > (unsigned int)( end - buf_p ) / rows ) {
+			ri.FS_FreeFile( buffer.v );
+			ri.Error( ERR_DROP, "LoadBMP: file truncated (%s)", name );
+			return;
+		}
+		bmpRGBA = R_IMAGE_MALLOC( outWidth * outHeight * 4 );
+		band = R_IMAGE_MALLOC( columns * 4 * block );
+		for ( sourceRow = 0; sourceRow < rows; sourceRow++ ) {
+			byte *src = buf_p + sourceRow * stride;
+			pixbuf = band + ( sourceRow % block ) * columns * 4;
+			for ( x = 0; x < columns; x++, src += bytes, pixbuf += 4 ) {
+				if ( bytes == 1 ) {
+					pixbuf[0] = bmpHeader.palette[*src][2]; pixbuf[1] = bmpHeader.palette[*src][1];
+					pixbuf[2] = bmpHeader.palette[*src][0]; pixbuf[3] = 255;
+				} else if ( bytes == 2 ) {
+					unsigned int pixel = src[0] | ( src[1] << 8 );
+					pixbuf[0] = ( pixel & 0x7c00 ) >> 7; pixbuf[1] = ( pixel & 0x03e0 ) >> 2;
+					pixbuf[2] = ( pixel & 0x001f ) << 3; pixbuf[3] = 255;
+				} else {
+					pixbuf[0] = src[2]; pixbuf[1] = src[1]; pixbuf[2] = src[0];
+					pixbuf[3] = bytes == 4 ? src[3] : 255;
+				}
+			}
+			if ( sourceRow % block == block - 1 ) {
+				int destRow = (int)bmpHeader.height < 0 ? sourceRow / block : outHeight - 1 - sourceRow / block;
+				R_GCReduceRows( band, bmpRGBA + destRow * outWidth * 4, columns, shift );
+			}
+		}
+		R_IMAGE_FREE( band ); ri.FS_FreeFile( buffer.v );
+		if ( width ) *width = outWidth;
+		if ( height ) *height = outHeight;
+		*pic = bmpRGBA;
+		return;
+	}
+#else
 	if ( width ) 
 		*width = columns;
 	if ( height )
@@ -236,4 +280,5 @@ void R_LoadBMP( const char *name, byte **pic, int *width, int *height )
 
 	ri.FS_FreeFile( buffer.v );
 
+#endif
 }

@@ -2452,6 +2452,20 @@ void R_LoadPNG(const char *name, byte **pic, int *width, int *height)
 		}
 	}
 
+#ifdef HW_DOL
+	{
+		int shift = R_GCImageShift( IHDR_Width, IHDR_Height );
+		if ( shift ) {
+			uint32_t row, block = 1 << shift, outWidth = IHDR_Width >> shift;
+			for ( row = 0; row < IHDR_Height / block; row++ )
+				R_GCReduceRows( OutBuffer + row * block * IHDR_Width * 4,
+					OutBuffer + row * outWidth * 4, IHDR_Width, shift );
+			IHDR_Width >>= shift;
+			IHDR_Height >>= shift;
+		}
+	}
+#endif
+
 	/*
 	 *  update the pointer to the image data
 	 */

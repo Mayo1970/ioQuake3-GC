@@ -678,3 +678,73 @@ Hunk peaks are unchanged. Release build: 143 warnings (was 144).
 | before (main 75eb4f7) | 1937440 | 493388 | 6483680 |
 | QGC-49 | 1935768 | 491480 | 6483680 |
 | delta | -1672 | -1908 | 0 |
+
+## 21. Memory fit, part 2: the map matrix (QGC-27)
+
+Dolphin 5.0-17995, stock 24 MB, `DEBUG=1`, `devmap <map>`, bots at skill 3.
+Bots: the single-player list from `scripts/arenas.txt`; q3tourney maps as `g_gametype 1`;
+CTF maps (no single-player entry) as `g_gametype 4` with 4 bots (Matt).
+
+### Changes (Matt, 2026-11-14)
+
+| Change | Where | Effect |
+|---|---|---|
+| TGA, PCX, BMP, PNG decode at the upload size (JPG contract: picmip shift, then the 256 cap; box filter; TGA/PCX/BMP row by row, PNG after the full decode) | `tr_image*.c` | 256x256 TGA at picmip 2: decode 262144 -> 16384 bytes; 512x512: 1048576 -> 16384 |
+| Botlib pass-area index sized by the 4 traced travel types | `be_aas_route.c` | q3ctf2 3474836 -> 126868 bytes; zone peak about -200 to -400 KB on every map |
+| An error during the `ERR_DROP` recovery prints both messages (`<new>` / `while recovering from: <first>`) | `common.c` | AC3 |
+| Debug: lowest free main memory (`mallinfo().fordblks` + Arena1) during a load, with the image; `GC oom:` line with the largest block on an `R_ImageMalloc` failure | `tr_gx_texture.c`, `tr_image.c` | `gc_texmem` prints `GC low` |
+
+The largest-block probe calls `malloc` through a volatile pointer: GCC removes a plain `malloc`/`free` pair at `-O2`.
+
+### Result: 19 of 30 maps load and play (was 8 before the changes)
+
+"Low free" is the lowest free main memory during the load (sum of free blocks, not one contiguous block).
+
+| Map | Bots | Result | Low free | Hunk peak | Zone peak | Reason / shortfall |
+|---|---:|---|---:|---:|---:|---|
+| q3dm0 | 1 | plays | 395344 | 8319196 | 1841504 |  |
+| q3dm1 | 1 | plays | 576488 | 5000800 | 1814072 |  |
+| q3dm2 | 1 | plays | 349864 | 5506588 | 1846060 |  |
+| q3dm3 | 2 | plays | 682056 | 4673160 | 1881116 |  |
+| q3dm4 | 3 | plays | 545944 | 6762016 | 2224088 |  |
+| q3dm5 | 2 | plays | 391776 | 5479904 | 1939972 |  |
+| q3dm6 | 5 | plays | 269176 | 7744800 | 2169304 |  |
+| q3dm7 | 4 | fails |  |  |  | hunk temp full (47164); 64 MB hunk peak 8954032, short <= 565424 |
+| q3dm8 | 4 | plays | 382080 | 7492160 | 2216332 |  |
+| q3dm9 | 4 | fails |  |  |  | hunk temp full (196664); 64 MB hunk peak 8835020, short <= 446412 |
+| q3dm10 | 3 | plays | 433448 | 6241176 | 2062412 |  |
+| q3dm11 | 4 | fails |  |  |  | lightmap lump 4105780 in hunk temp (fix B not taken) |
+| q3dm12 | 6 | fails |  |  |  | lightmap lump 3648316 in hunk temp (fix B not taken) |
+| q3dm13 | 3 | plays | 302600 | 6175936 | 2059388 |  |
+| q3dm14 | 4 | fails |  |  |  | `Hunk_Alloc` world surfaces; 64 MB hunk peak 9306380, short <= 917772 |
+| q3dm15 | 3 | fails |  |  |  | `Hunk_Alloc` world surfaces; 64 MB hunk peak 9508848, short <= 1120240 |
+| q3dm16 | 3 | plays | 698512 | 5747680 | 2206956 |  |
+| q3dm17 | 3 | plays | 723464 | 5076940 | 2028996 |  |
+| q3dm18 | 5 | fails |  |  |  | `R_ImageMalloc` 32768 (180072 free, fragmented); 64 MB hunk peak 8420524, short <= 31916 hunk |
+| q3dm19 | 3 | fails |  |  |  | light grid 3633376 `Hunk_Alloc` (fix B not taken) |
+| q3tourney1 | 1 | plays | 699288 | 5424736 | 1870004 |  |
+| q3tourney2 | 1 | plays | 487696 | 6220224 | 1907328 |  |
+| q3tourney3 | 1 | plays | 532336 | 4852132 | 1911720 |  |
+| q3tourney4 | 1 | plays | 305688 | 5381620 | 1852024 |  |
+| q3tourney5 | 1 | plays | 820944 | 3704076 | 1749344 |  |
+| q3tourney6 | 1 | plays | 422408 | 5128592 | 1893256 |  |
+| q3ctf1 | 4 | fails |  |  |  | MD3 staging `memalign` 32768 failed at team model load (low point 156312) |
+| q3ctf2 | 4 | fails |  |  |  | 64 MB peaks: hunk 15702900 (short 7314292), zone 3603108 (short 719524) |
+| q3ctf3 | 4 | fails |  |  |  | lightmap lump 3304984 in hunk temp (fix B not taken) |
+| q3ctf4 | 4 | plays | 514648 | 5562200 | 2202664 |  |
+
+Smallest margin: **269176 bytes**, q3dm6 with 5 bots (during the upload of `teleport_fluid.tga`).
+Upper bounds for the hunk come from 64 MB runs (`com_hunkMegs 24`), where cgame loads every bot model;
+stock defers models when the hunk has less than 4 MB free, so the real shortfall is smaller.
+A hunk/malloc rebalance (fix C) is not possible: moving 256 KB to the hunk breaks q3dm6 and is
+still short for q3dm14/15 (Matt: close QGC-27 and list the rest).
+
+### Binary size (release)
+
+| | text | data | bss |
+|---|---:|---:|---:|
+| before (main 359591a) | 1935768 | 491480 | 6483680 |
+| QGC-27 | 1936712 | 491556 | 6483680 |
+| delta | +944 | +76 | 0 |
+
+Release and debug: 143 warnings, as `main`.

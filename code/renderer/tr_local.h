@@ -1653,6 +1653,8 @@ void R_LoadPNG( const char *name, byte **pic, int *width, int *height );
 void R_LoadTGA( const char *name, byte **pic, int *width, int *height );
 
 #ifdef HW_DOL
+int R_GCImageShift( int width, int height );
+void R_GCReduceRows( const byte *rows, byte *out, int width, int shift );
 void *R_ImageMalloc( int size );
 void  R_ImageFree( void *ptr );
 #define R_IMAGE_MALLOC( size )	R_ImageMalloc( size )

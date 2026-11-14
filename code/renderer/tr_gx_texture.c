@@ -574,6 +574,10 @@ void GXBE_Upload32(unsigned *data, int width, int height,
     }
 
 #ifdef GC_DEBUG
+    GXBE_MemSample("upload", NULL);
+#endif
+
+#ifdef GC_DEBUG
     {
         int cmprSize = gx_cmpr_size(width, height);
         int lw = width, lh = height;
@@ -766,6 +770,45 @@ void GXBE_ReadPixelsRGB(int x, int y, int w, int h, int padlen, byte *dst)
 }
 
 #ifdef GC_DEBUG
+static unsigned int s_gc_memLow = 0xffffffff;
+static char         s_gc_memLowWhere[64];
+
+/* Free main memory: free newlib blocks plus the arena the heap has not claimed yet. */
+void GXBE_MemSample(const char *what, const char *name)
+{
+    unsigned int freeMem = (unsigned int)mallinfo().fordblks + (unsigned int)SYS_GetArena1Size();
+
+    if (freeMem < s_gc_memLow) {
+        s_gc_memLow = freeMem;
+        if (name)
+            Com_sprintf(s_gc_memLowWhere, sizeof(s_gc_memLowWhere), "%s %s", what, name);
+        else
+            Com_sprintf(s_gc_memLowWhere, sizeof(s_gc_memLowWhere), "%s", what);
+    }
+}
+
+/* Largest block malloc can satisfy now, binary searched in 4096-byte steps. */
+unsigned int GXBE_LargestFree(void)
+{
+    unsigned int lo = 0;
+    unsigned int hi = ((unsigned int)mallinfo().fordblks + (unsigned int)SYS_GetArena1Size()) / 4096;
+    /* Volatile pointer: GCC drops a plain malloc/free pair at -O2. */
+    void *(*volatile probe)(size_t) = malloc;
+
+    while (lo < hi) {
+        unsigned int mid = lo + (hi - lo + 1) / 2;
+        void *p = probe(mid * 4096);
+
+        if (p) {
+            free(p);
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    return lo * 4096;
+}
+
 void GXBE_TexHeapReport(const char *where)
 {
     struct mallinfo mi = mallinfo();
@@ -776,5 +819,7 @@ void GXBE_TexHeapReport(const char *where)
     ri.Printf(PRINT_ALL, "GC tex %s: malloc in use %u, malloc free %u, arena1 %u\n",
               where, (unsigned int)mi.uordblks, (unsigned int)mi.fordblks,
               (unsigned int)SYS_GetArena1Size());
+    ri.Printf(PRINT_ALL, "GC low %s: free %u at %s\n",
+              where, s_gc_memLow, s_gc_memLowWhere);
 }
 #endif
