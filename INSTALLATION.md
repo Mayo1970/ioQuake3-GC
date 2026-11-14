@@ -15,6 +15,18 @@ SD card.
 | **ioQuake3** | Quake III Arena | Single player with bots, LAN/online multiplayer through the Broadband Adapter |
 | **Open Arena** | Free/open Q3A-compatible game | Uses free OA game data — no retail purchase needed. Planned after Quake III Arena is done. |
 
+## Release package
+
+`make dist` builds the release layout in `dist/ioQuake3-GC/`:
+
+```
+dist/ioQuake3-GC/ioquake3_gc.dol      (ioquake3_oa_gc.dol for Open Arena)
+dist/ioQuake3-GC/README.md
+dist/ioQuake3-GC/INSTALLATION.md
+dist/ioQuake3-GC/LICENSE
+dist/ioQuake3-GC/THIRD_PARTY_NOTICES.md
+```
+
 ## What you need
 
 - A GameCube that can start homebrew: [Swiss](https://github.com/emukidid/swiss-gc)
@@ -81,6 +93,9 @@ Copy Open Arena's paks — no `baseq3` needed:
 2. Copy the game data from the sections above into `<dev>:/quake3/`.
 3. Start Swiss, browse to the `.dol` and start it.
 
+Swiss passes the path the game was started from. The game uses that card
+first, then the other cards.
+
 ### PicoBoot (autoboot)
 
 Rename the `.dol` to `ipl.dol` and put it in the root of the SD card.
@@ -88,6 +103,19 @@ Rename the `.dol` to `ipl.dol` and put it in the root of the SD card.
 ### SD Media Launcher
 
 Rename the `.dol` to `autoexec.dol` and put it in the root of the SD card.
+
+## Settings and progress
+
+Settings and single-player progress are saved to
+`<dev>:/quake3/baseq3/q3config.cfg` when they change and on quit. Nothing is
+saved when the game runs from a disc image.
+
+## Quitting
+
+Z + START or the menu's Quit, or the console's Reset button, save and quit.
+The game returns to the loader if the loader left a return stub; otherwise the
+console resets. With PicoBoot a reset starts `/ipl.dol` again, so the game
+restarts.
 
 ## Troubleshooting
 

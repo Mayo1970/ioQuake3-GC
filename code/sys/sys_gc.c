@@ -124,6 +124,9 @@ qboolean GC_InitStorage(int argc, char **argv)
 				break;
 			}
 		}
+		/* Swiss passes the SD2SP2 path as sd:. */
+		if (sel < 0 && !strncmp(argv[0], "sd:", 3))
+			sel = 0;
 	}
 	if (sel >= 0)
 		order[n++] = sel;

@@ -154,7 +154,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	-L$(LIBOGC_LIB) $(foreach dir,$(LIBDIRS),-L$(dir)/lib)
 
-.PHONY: all clean iso $(BUILD)
+.PHONY: all clean iso dist $(BUILD)
 
 all: $(BUILD)
 
@@ -165,12 +165,18 @@ $(BUILD):
 
 clean:
 	@echo clean ...
-	@rm -rf build build_* *.gcm *.iso
+	@rm -rf build build_* dist *.gcm *.iso
 	@$(MAKE) --no-print-directory -C tools/apploader clean
 
 iso: all
 	@$(MAKE) -C tools/apploader
 	@python3 tools/mkgcm.py --dol $(BUILD)/$(TARGET).dol --apploader build/apploader/apploader.bin --out $(BUILD)/$(TARGET).gcm --id $(DISC_ID) --maker QG --name "ioQuake3-GC" $(if $(ISO_ROOT),--root $(ISO_ROOT))
+
+dist: all
+	@rm -rf dist/ioQuake3-GC
+	@mkdir -p dist/ioQuake3-GC
+	@cp $(BUILD)/$(TARGET).dol dist/ioQuake3-GC/$(TARGET).dol
+	@cp README.md INSTALLATION.md LICENSE THIRD_PARTY_NOTICES.md dist/ioQuake3-GC/
 
 #---------------------------------------------------------------------------------
 else

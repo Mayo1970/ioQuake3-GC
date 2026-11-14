@@ -79,7 +79,7 @@ Other targets:
 make              # ELF + ioquake3_gc.dol
 make dist         # release layout in dist/ioQuake3-GC/
 make iso          # bootable GameCube disc image for Dolphin smoke tests only
-make clean        # wipe all build dirs and any disc image
+make clean        # wipe all build dirs, dist and any disc image
 ```
 
 ### Build flags
