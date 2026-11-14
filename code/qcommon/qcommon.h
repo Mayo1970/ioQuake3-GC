@@ -925,7 +925,7 @@ temp file loading
 
 */
 
-#if !defined(NDEBUG) && !defined(BSPC)
+#if !defined(NDEBUG) && !defined(BSPC) && !defined(HW_DOL)
 	#define ZONE_DEBUG
 #endif
 

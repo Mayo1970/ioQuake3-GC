@@ -779,6 +779,30 @@ typedef struct zonedebug_s {
 	int allocSize;
 } zonedebug_t;
 
+#ifdef HW_DOL
+#define BUCKET_COUNT 4
+#define BUCKET_SIZE 64
+
+typedef struct memblock_s {
+	struct memblock_s *next, *prev;
+	int size;
+	int tag;
+} memblock_t;
+
+typedef struct freeblock_s {
+	struct freeblock_s *prev, *next;
+} freeblock_t;
+
+typedef struct {
+	int size;
+	int used;
+	memblock_t blocklist;
+	struct {
+		memblock_t filler;
+		freeblock_t head;
+	} bucket[BUCKET_COUNT];
+} memzone_t;
+#else
 typedef struct memblock_s {
 	int		size;           // including the header and possibly tiny fragments
 	int     tag;            // a tag of 0 is a free block
@@ -796,6 +820,8 @@ typedef struct {
 	memblock_t	*rover;
 } memzone_t;
 
+#endif
+
 // main zone for all "dynamic" memory allocation
 memzone_t	*mainzone;
 // we also have a small zone for small allocations that would only
@@ -804,11 +830,89 @@ memzone_t	*smallzone;
 
 void Z_CheckHeap( void );
 
+#ifdef HW_DOL
+static int GetBucketIndex( int size ) {
+	int index = size / BUCKET_SIZE;
+	return index > BUCKET_COUNT - 1 ? BUCKET_COUNT - 1 : index;
+}
+
+static void InsertFree( memzone_t *zone, memblock_t *block ) {
+	freeblock_t *fb = (freeblock_t *)(block + 1);
+	freeblock_t *prev = &zone->bucket[GetBucketIndex( block->size )].head;
+	freeblock_t *next = prev->next;
+	prev->next = fb;
+	next->prev = fb;
+	fb->prev = prev;
+	fb->next = next;
+}
+
+static void RemoveFree( memblock_t *block ) {
+	freeblock_t *fb = (freeblock_t *)(block + 1);
+	freeblock_t *prev = fb->prev;
+	freeblock_t *next = fb->next;
+	prev->next = next;
+	next->prev = prev;
+}
+
+static memblock_t *SplitBlock( memblock_t *base, int base_size, int fragment_size ) {
+	memblock_t *fragment = (memblock_t *)((byte *)base + base_size);
+	fragment->size = fragment_size;
+	fragment->prev = base;
+	fragment->next = base->next;
+	fragment->next->prev = fragment;
+	base->next = fragment;
+	base->size = base_size;
+	return fragment;
+}
+
+static memblock_t *SearchFree( memzone_t *zone, int size ) {
+	const freeblock_t *fb = zone->bucket[GetBucketIndex( size )].head.next;
+	const freeblock_t *fh = &zone->bucket[0].head;
+	for ( ;; ) {
+		memblock_t *base;
+		if ( fb == fh ) {
+			Com_Error( ERR_FATAL, "Z_Malloc: failed on allocation of %i bytes from the %s zone", size, zone == smallzone ? "small" : "main" );
+			return NULL;
+		}
+		base = (memblock_t *)((byte *)fb - sizeof( *base ));
+		fb = fb->next;
+		if ( base->size >= size ) {
+			return base;
+		}
+	}
+}
+
+static void MergeBlock( memblock_t *curr_free, const memblock_t *next ) {
+	curr_free->size += next->size;
+	curr_free->next = next->next;
+	curr_free->next->prev = curr_free;
+}
+#endif
+
 /*
 ========================
 Z_ClearZone
 ========================
 */
+#ifdef HW_DOL
+void Z_ClearZone( memzone_t *zone, int size ) {
+	memblock_t *block;
+	int i;
+	Com_Memset( zone, 0, sizeof( *zone ) + sizeof( *block ) );
+	zone->blocklist.next = zone->blocklist.prev = block = (memblock_t *)(zone + 1);
+	zone->blocklist.tag = TAG_GENERAL;
+	zone->size = size;
+	block->prev = block->next = &zone->blocklist;
+	block->size = size - sizeof( *zone );
+	block->tag = TAG_FREE;
+	for ( i = 0; i < BUCKET_COUNT; i++ ) {
+		zone->bucket[i].head.next = &zone->bucket[(i + 1) % BUCKET_COUNT].head;
+		zone->bucket[i].head.prev = &zone->bucket[(i + BUCKET_COUNT - 1) % BUCKET_COUNT].head;
+		zone->bucket[i].filler.tag = TAG_GENERAL;
+	}
+	InsertFree( zone, block );
+}
+#else
 void Z_ClearZone( memzone_t *zone, int size ) {
 	memblock_t	*block;
 	
@@ -828,6 +932,7 @@ void Z_ClearZone( memzone_t *zone, int size ) {
 	block->id = ZONEID;
 	block->size = size - sizeof(memzone_t);
 }
+#endif
 
 /*
 ========================
@@ -852,6 +957,96 @@ int Z_AvailableMemory( void ) {
 Z_Free
 ========================
 */
+#ifdef HW_DOL
+void Z_Free( void *ptr ) {
+	memblock_t *block, *other;
+	memzone_t *zone;
+	if ( !ptr ) {
+		Com_Error( ERR_DROP, "Z_Free: NULL pointer" );
+		return;
+	}
+	block = (memblock_t *)ptr - 1;
+	if ( block->tag == TAG_STATIC ) {
+		return;
+	}
+	if ( block->tag == TAG_FREE ) {
+		Com_Error( ERR_FATAL, "Z_Free: freed a freed pointer" );
+	}
+	zone = block->tag == TAG_SMALL ? smallzone : mainzone;
+	zone->used -= block->size;
+	block->tag = TAG_FREE;
+	other = block->prev;
+	if ( other->tag == TAG_FREE ) {
+		RemoveFree( other );
+		MergeBlock( other, block );
+		block = other;
+	}
+	other = block->next;
+	if ( other->tag == TAG_FREE ) {
+		RemoveFree( other );
+		MergeBlock( block, other );
+	}
+	InsertFree( zone, block );
+}
+
+void Z_FreeTags( int tag ) {
+	memzone_t *zone;
+	memblock_t *block, *freed;
+	if ( tag == TAG_STATIC ) {
+		Com_Error( ERR_FATAL, "Z_FreeTags( TAG_STATIC )" );
+		return;
+	}
+	zone = tag == TAG_SMALL ? smallzone : mainzone;
+	for ( block = zone->blocklist.next; ; ) {
+		if ( block->tag == tag && block->size != 0 ) {
+			freed = block->prev->tag == TAG_FREE ? block->prev : block;
+			Z_Free( (void *)(block + 1) );
+			block = freed;
+		}
+		if ( block->next == &zone->blocklist ) {
+			break;
+		}
+		block = block->next;
+	}
+}
+
+void *Z_TagMalloc( int size, int tag ) {
+	int extra;
+	memblock_t *base;
+	memzone_t *zone;
+	if ( !tag ) {
+		Com_Error( ERR_FATAL, "Z_TagMalloc: tried to use a 0 tag" );
+	}
+	zone = tag == TAG_SMALL ? smallzone : mainzone;
+	if ( size < (int)sizeof( freeblock_t ) ) {
+		size = sizeof( freeblock_t );
+	}
+	size += sizeof( *base );
+	size = PAD( size, sizeof( intptr_t ) );
+	base = SearchFree( zone, size );
+	if ( !base ) {
+		return NULL;
+	}
+	RemoveFree( base );
+	extra = base->size - size;
+	if ( extra >= MINFRAGMENT ) {
+		memblock_t *fragment = SplitBlock( base, size, extra );
+		InsertFree( zone, fragment );
+		fragment->tag = TAG_FREE;
+	}
+	zone->used += base->size;
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	if ( zone == mainzone && zone->used > gc_zonePeak ) {
+		gc_zonePeak = zone->used;
+	}
+	if ( zone == smallzone && zone->used > gc_smallZonePeak ) {
+		gc_smallZonePeak = zone->used;
+	}
+#endif
+	base->tag = tag;
+	return (void *)(base + 1);
+}
+#else
 void Z_Free( void *ptr ) {
 	memblock_t	*block, *other;
 	memzone_t *zone;
@@ -1053,6 +1248,7 @@ void *Z_TagMalloc( int size, int tag ) {
 
 	return (void *) ((byte *)base + sizeof(memblock_t));
 }
+#endif
 
 /*
 ========================
@@ -1183,6 +1379,22 @@ typedef struct memstatic_s {
 	byte mem[2];
 } memstatic_t;
 
+#ifdef HW_DOL
+memstatic_t emptystring =
+	{ {NULL, NULL, (sizeof(memblock_t)+2 + 3) & ~3, TAG_STATIC}, {'\0', '\0'} };
+memstatic_t numberstring[] = {
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'0', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'1', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'2', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'3', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'4', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'5', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'6', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'7', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'8', '\0'} },
+	{ {NULL, NULL, (sizeof(memstatic_t) + 3) & ~3, TAG_STATIC}, {'9', '\0'} }
+};
+#else
 memstatic_t emptystring =
 	{ {(sizeof(memblock_t)+2 + 3) & ~3, TAG_STATIC, NULL, NULL, ZONEID}, {'\0', '\0'} };
 memstatic_t numberstring[] = {
@@ -1197,6 +1409,7 @@ memstatic_t numberstring[] = {
 	{ {(sizeof(memstatic_t) + 3) & ~3, TAG_STATIC, NULL, NULL, ZONEID}, {'8', '\0'} }, 
 	{ {(sizeof(memstatic_t) + 3) & ~3, TAG_STATIC, NULL, NULL, ZONEID}, {'9', '\0'} }
 };
+#endif
 
 /*
 ========================

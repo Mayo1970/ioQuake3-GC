@@ -15,6 +15,7 @@ baseline path `ui/menudef.h`.
 | ioquake3 (id Software, ioquake3 contributors), through old-mac-quake3 | `code/` (vendored) | GPL-2.0 | Yes |
 | old-mac-quake3 changes (Matthew Deaves) | `code/` (vendored) | GPL-2.0 | Yes |
 | ioQuake3-wii GX renderer, input and audio layers | `code/` (ported parts) | GPL-2.0 | Yes |
+| Quake3e zone allocator | `code/qcommon/common.c` (`HW_DOL` only) | GPL-2.0-or-later | Yes |
 | q3ce (Quake 3 Arena CE) | not vendored, reference for memory cuts | GPL-2.0 | Only if code is copied |
 | zlib 1.2.3 (Jean-loup Gailly and Mark Adler) | `code/zlib/` | zlib License | Yes |
 | minizip `unzip.c` (Gilles Vollant) | `code/qcommon/unzip.c` | zlib License | Yes |
@@ -43,6 +44,11 @@ The Quake III Arena and OpenArena **game data** is not covered and is not includ
 - ioQuake3-wii: https://github.com/Mayo1970/ioQuake3-wii, commit `9b9ad24bfae38a9951066906edf7a9942ec93d2d`.
   Source of the native GX renderer backend, the GameCube pad input and the audio backend.
 - q3ce: http://q3ce.googlecode.com/svn (Quake 3 Arena CE 1.1, based on Quake III Arena 1.32b). Reference only.
+
+## Quake3e
+
+The `HW_DOL` zone allocator in `code/qcommon/common.c` is adapted from Quake3e,
+https://github.com/ec-/Quake3e, commit `96a2e530`, licensed GPL-2.0-or-later.
 
 ## zlib, minizip and puff
 
