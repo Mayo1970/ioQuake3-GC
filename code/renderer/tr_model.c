@@ -39,16 +39,19 @@ static qboolean R_LoadMDR(model_t *mod, void *buffer, int filesize, const char *
 
 #ifdef HW_DOL
 static u32 s_md3AramNext;
+static u32 s_gridAramStart;
 #ifdef GC_DEBUG
 static u32 s_md3AramPeak;
 #endif
 static qboolean s_md3AramFull;
 
 static u32 R_MD3AramAlloc( u32 len ) {
+#ifdef GC_DEBUG
 	u32 base = GC_ARAM_ModelBase();
+#endif
 	u32 addr;
 
-	if ( s_md3AramNext + len > base + GC_ARAM_MODEL_SIZE ) {
+	if ( len > s_gridAramStart - s_md3AramNext ) {
 		return 0;
 	}
 
@@ -62,10 +65,21 @@ static u32 R_MD3AramAlloc( u32 len ) {
 	return addr;
 }
 
+u32 R_GridAramAlloc( u32 size ) {
+	u32 end = GC_ARAM_ModelBase() + GC_ARAM_MODEL_SIZE;
+
+	if ( !size || size > end - s_md3AramNext ) {
+		return 0;
+	}
+	s_gridAramStart = end - size;
+	return s_gridAramStart;
+}
+
 #if defined(GC_DEBUG)
 void R_MD3AramReport( const char *where ) {
 	ri.Printf( PRINT_ALL, "GC aram %s: models used %u of %u, peak %u\n",
 		where, s_md3AramNext - GC_ARAM_ModelBase(), (u32)GC_ARAM_MODEL_SIZE, s_md3AramPeak );
+	R_GridCacheReport();
 }
 #endif
 #endif
@@ -556,7 +570,7 @@ static qboolean R_LoadMD3 (model_t *mod, int lod, void *buffer, const char *mod_
 		if ( !aramBase ) {
 			s_md3AramFull = qtrue;
 			ri.Printf( PRINT_WARNING, "R_LoadMD3: %s: model ARAM full (%u bytes needed, %u free)\n",
-				mod_name, aramSize, (u32)( GC_ARAM_ModelBase() + GC_ARAM_MODEL_SIZE - s_md3AramNext ) );
+				mod_name, aramSize, (u32)( s_gridAramStart - s_md3AramNext ) );
 			return qfalse;
 		}
 
@@ -1393,6 +1407,8 @@ void R_ModelInit( void ) {
 
 #ifdef HW_DOL
 	s_md3AramNext = GC_ARAM_ModelBase();
+	s_gridAramStart = s_md3AramNext + GC_ARAM_MODEL_SIZE;
+	R_GridCacheReset();
 #ifdef GC_DEBUG
 	s_md3AramPeak = 0;
 #endif

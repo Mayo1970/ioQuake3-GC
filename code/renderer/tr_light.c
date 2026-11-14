@@ -22,6 +22,55 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // tr_light.c
 
 #include "tr_local.h"
+#ifdef HW_DOL
+#include "../sys/gc_aram.h"
+
+static byte s_gridCache[256][32] __attribute__((aligned(32)));
+static unsigned int s_gridTags[256];
+#ifdef GC_DEBUG
+static unsigned int s_gridHits, s_gridMisses;
+#endif
+
+void R_GridCacheReset( void ) {
+	int i;
+	for ( i = 0; i < 256; i++ ) s_gridTags[i] = ~0U;
+#ifdef GC_DEBUG
+	s_gridHits = s_gridMisses = 0;
+#endif
+}
+
+#ifdef GC_DEBUG
+void R_GridCacheReport( void ) {
+	ri.Printf( PRINT_ALL, "GC grid cache: %u hits, %u misses\n", s_gridHits, s_gridMisses );
+}
+#endif
+
+static void R_GridPoint( int x, int y, int z, byte out[8] ) {
+	unsigned int offset, line, slot;
+	int coords[3], i;
+	coords[0] = x; coords[1] = y; coords[2] = z;
+	for ( i = 0; i < 3; i++ ) {
+		if ( coords[i] < 0 ) coords[i] = 0;
+		if ( coords[i] >= tr.world->lightGridBounds[i] ) coords[i] = tr.world->lightGridBounds[i] - 1;
+	}
+	offset = 8 * ( coords[0] + tr.world->lightGridBounds[0] *
+		( coords[1] + tr.world->lightGridBounds[1] * coords[2] ) );
+	line = offset >> 5;
+	slot = line & 255;
+	if ( s_gridTags[slot] != line ) {
+		GC_ARAM_Read( s_gridCache[slot], tr.world->lightGridAram + ( line << 5 ), 32 );
+		s_gridTags[slot] = line;
+#ifdef GC_DEBUG
+		s_gridMisses++;
+#endif
+	} else {
+#ifdef GC_DEBUG
+		s_gridHits++;
+#endif
+	}
+	Com_Memcpy( out, s_gridCache[slot] + ( offset & 31 ), 8 );
+}
+#endif
 
 #define	DLIGHT_AT_RADIUS		16
 // at the edge of a dlight's influence, this amount of light will be added
@@ -127,9 +176,11 @@ static void R_SetupEntityLightingGrid( trRefEntity_t *ent ) {
 	vec3_t	lightOrigin;
 	int		pos[3];
 	int		i, j;
+#ifndef HW_DOL
 	byte	*gridData;
-	float	frac[3];
 	int		gridStep[3];
+#endif
+	float	frac[3];
 	vec3_t	direction;
 	float	totalFactor;
 
@@ -160,6 +211,9 @@ static void R_SetupEntityLightingGrid( trRefEntity_t *ent ) {
 	VectorClear( ent->directedLight );
 	VectorClear( direction );
 
+#ifdef HW_DOL
+	assert( tr.world->lightGridAram );
+#else
 	assert( tr.world->lightGridData ); // NULL with -nolight maps
 
 	// trilerp the light value
@@ -168,22 +222,34 @@ static void R_SetupEntityLightingGrid( trRefEntity_t *ent ) {
 	gridStep[2] = 8 * tr.world->lightGridBounds[0] * tr.world->lightGridBounds[1];
 	gridData = tr.world->lightGridData + pos[0] * gridStep[0]
 		+ pos[1] * gridStep[1] + pos[2] * gridStep[2];
+#endif
 
 	totalFactor = 0;
 	for ( i = 0 ; i < 8 ; i++ ) {
 		float	factor;
-		byte	*data;
+#ifdef HW_DOL
+		byte sample[8];
+		byte *data = sample;
+#else
+		byte *data;
+#endif
 		int		lat, lng;
 		vec3_t	normal;
 		#if idppc
 		float d0, d1, d2, d3, d4, d5;
 		#endif
 		factor = 1.0;
+#ifdef HW_DOL
+		R_GridPoint( pos[0] + !!( i & 1 ), pos[1] + !!( i & 2 ), pos[2] + !!( i & 4 ), sample );
+#else
 		data = gridData;
+#endif
 		for ( j = 0 ; j < 3 ; j++ ) {
 			if ( i & (1<<j) ) {
 				factor *= frac[j];
+#ifndef HW_DOL
 				data += gridStep[j];
+#endif
 			} else {
 				factor *= (1.0f - frac[j]);
 			}
@@ -307,8 +373,12 @@ void R_SetupEntityLighting( const trRefdef_t *refdef, trRefEntity_t *ent ) {
 	}
 
 	// if NOWORLDMODEL, only use dynamic lights (menu system, etc)
-	if ( !(refdef->rdflags & RDF_NOWORLDMODEL ) 
+	if ( !(refdef->rdflags & RDF_NOWORLDMODEL )
+#ifdef HW_DOL
+		&& tr.world->lightGridAram ) {
+#else
 		&& tr.world->lightGridData ) {
+#endif
 		R_SetupEntityLightingGrid( ent );
 	} else {
 		ent->ambientLight[0] = ent->ambientLight[1] = 
@@ -380,7 +450,11 @@ int R_LightForPoint( vec3_t point, vec3_t ambientLight, vec3_t directedLight, ve
 {
 	trRefEntity_t ent;
 	
+#ifdef HW_DOL
+	if ( !tr.world->lightGridAram )
+#else
 	if ( tr.world->lightGridData == NULL )
+#endif
 	  return qfalse;
 
 	Com_Memset(&ent, 0, sizeof(ent));
