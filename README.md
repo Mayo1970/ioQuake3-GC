@@ -225,8 +225,10 @@ map load.
 
 ## Known limits
 
-- **Memory.** 8 of 30 maps do not load (see above). The margin on maps that
-  play is small (288640 bytes on q3ctf1).
+- **Memory.** 22 of 30 maps load and play. 8 maps fail to load: q3dm9,
+  q3dm11, q3dm12, q3dm14, q3dm15, q3dm18, q3ctf2 and q3ctf3 (see
+  [Map list](#map-list)). The margin on maps that play is small (288640
+  bytes on q3ctf1).
 - **Lower detail to fit 24 MB:**
   - `r_picmip 2` and a 256x256 texture cap. Textures are 16-bit or `CMPR`.
   - Player models use only their lowest LOD.
@@ -241,14 +243,11 @@ map load.
 - **Cinematics** larger than 512x256 do not play.
 - **No music.** Only sound effects play.
 - **Sound paging.** The 16-slot decode cache can thrash with many voices.
-  A cache miss costs about 335 us in Dolphin.
 - **No network.** The Broadband Adapter is not supported. Only local
   play with bots works.
 - **No rumble.**
 - **No on-screen keyboard.** You cannot type a name or a chat message.
 - **One controller.** Only the first connected pad works.
-- **Load time.** A map load takes about 3 minutes in Dolphin (q3dm1:
-  190 s).
 - **No log in release builds.** Use `DEBUG=1` for the engine log.
 - **No save from a disc image.** Config saves need an SD card.
 - **First boot.** On one boot (Action Replay SD loader, Datel SD adapter in
