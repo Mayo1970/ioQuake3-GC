@@ -464,6 +464,9 @@ void GXBE_DeleteTexnum(int texnum)
         return;
 
     if (s_gx_texbufs[texnum]) {
+#if defined(HW_DOL) && defined(GC_DEBUG)
+        GC_HeapUntag(s_gx_texbufs[texnum]);
+#endif
         free(s_gx_texbufs[texnum]);
         s_gx_texbufs[texnum] = NULL;
 #ifdef GC_DEBUG
@@ -517,6 +520,9 @@ void GXBE_Upload32(unsigned *data, int width, int height,
 
     /* Free any previous buffer for this slot (e.g. re-upload) */
     if (s_gx_texbufs[texnum]) {
+#if defined(HW_DOL) && defined(GC_DEBUG)
+        GC_HeapUntag(s_gx_texbufs[texnum]);
+#endif
         free(s_gx_texbufs[texnum]);
         s_gx_texbufs[texnum] = NULL;
 #ifdef GC_DEBUG
@@ -573,6 +579,9 @@ void GXBE_Upload32(unsigned *data, int width, int height,
         return;
     }
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+    GC_HeapTag(buf, size, 'T');
+#endif
 #ifdef GC_DEBUG
     GXBE_MemSample("upload", NULL);
 #endif

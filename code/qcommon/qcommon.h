@@ -25,6 +25,12 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "../qcommon/cm_public.h"
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+void GC_HeapMap( const char *why );
+void GC_HeapTag( void *ptr, unsigned int size, char tag );
+void GC_HeapUntag( void *ptr );
+#endif
+
 //Ignore __attribute__ on non-gcc platforms
 #ifndef __GNUC__
 #ifndef __attribute__

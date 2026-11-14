@@ -130,12 +130,30 @@ qhandle_t R_RegisterMD3(const char *name, model_t *mod)
 	for (lod = MD3_MAX_LODS - 1 ; lod >= 0 ; lod--)
 #endif
 	{
-		if(lod)
-			Com_sprintf(namebuf, sizeof(namebuf), "%s_%d.%s", filename, lod, fext);
+#ifdef HW_DOL
+		/* Player models load the small _2 LOD so the temp read fits in 24 MB (QGC-27). */
+		if ( !lod && !Q_stricmpn( name, "models/players/", 15 ) ) {
+			Com_sprintf(namebuf, sizeof(namebuf), "%s_2.%s", filename, fext);
+			ri.FS_ReadFile( namebuf, &buf.v );
+			if ( !buf.u ) {
+				Com_sprintf(namebuf, sizeof(namebuf), "%s.%s", filename, fext);
+				ri.FS_ReadFile( namebuf, &buf.v );
+			}
+#ifdef GC_DEBUG
+			else
+				ri.Printf( PRINT_ALL, "GC md3 lod2: %s\n", namebuf );
+#endif
+		}
 		else
-			Com_sprintf(namebuf, sizeof(namebuf), "%s.%s", filename, fext);
+#endif
+		{
+			if(lod)
+				Com_sprintf(namebuf, sizeof(namebuf), "%s_%d.%s", filename, lod, fext);
+			else
+				Com_sprintf(namebuf, sizeof(namebuf), "%s.%s", filename, fext);
 
-		ri.FS_ReadFile( namebuf, &buf.v );
+			ri.FS_ReadFile( namebuf, &buf.v );
+		}
 		if(!buf.u)
 			continue;
 		
@@ -627,9 +645,15 @@ static qboolean R_LoadMD3 (model_t *mod, int lod, void *buffer, const char *mod_
 		staging = (unsigned char *)memalign( 32, 32768 );
 		if ( !staging ) {
 			ri.Printf( PRINT_WARNING, "R_LoadMD3: %s: frame staging memalign failed\n", mod_name );
+#if defined(HW_DOL) && defined(GC_DEBUG)
+			GC_HeapMap( "oom" );
+#endif
 			s_md3AramNext = aramBase;
 			return qfalse;
 		}
+#if defined(HW_DOL) && defined(GC_DEBUG)
+		GC_HeapTag( staging, 32768, 'M' );
+#endif
 
 		// swap all the surfaces
 		surf = (md3Surface_t *) ( (byte *)hunkmodel + hunkmodel->ofsSurfaces );
@@ -733,6 +757,9 @@ static qboolean R_LoadMD3 (model_t *mod, int lod, void *buffer, const char *mod_
 			fsurf = (md3Surface_t *)( (byte *)fsurf + surfOfsEnd );
 		}
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+		GC_HeapUntag( staging );
+#endif
 		free( staging );
 		return qtrue;
 	}
