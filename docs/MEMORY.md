@@ -748,3 +748,60 @@ still short for q3dm14/15 (Matt: close QGC-27 and list the rest).
 | delta | +944 | +76 | 0 |
 
 Release and debug: 143 warnings, as `main`.
+
+### Fix B: big BSP lumps (Matt, 2026-11-14, branch `task/QGC-27b-bsp-lumps`)
+
+| Change | Where | Effect |
+|---|---|---|
+| Lightmaps read one at a time (49152 bytes) | `tr_bsp.c` | q3dm11 temp 1228800 -> 49152 |
+| Surfaces, vertices and indexes streamed through read windows (64 KB verts, 32 KB indexes, 64-surface chunks) | `tr_bsp.c` | q3dm11 temp 4105780 -> about 105000; hunk peak lower on every map (q3dm0 8319196 -> 6973344) |
+| Light grid streamed to the top of the ARAM model partition; lookups through an 8 KB direct-mapped cache (32-byte lines), corners clamped | `tr_bsp.c`, `tr_light.c`, `tr_model.c` | q3dm19 hunk -3633376; cache hit rate about 86 % |
+| A pk3 inflate error ends in `FS_Read: inflate error %i on %s (out of memory?)` | `files.c` | was a misleading "short read" |
+
+Note: the earlier label "lightmap lump" for q3dm11, q3dm12 and q3ctf3 was wrong; their 3.3-4.1 MB block was surfaces + vertices + indexes.
+The BSP is deflated in the pk3: a backward seek re-inflates from the start of the entry and needs about 40 KB of malloc for zlib.
+q3dm1 load time 184 s -> 190 s.
+
+Result after fix B: 20 of 30 maps play (q3dm19 added, no map lost). Smallest margin 253168 (q3dm19), then 255736 (q3dm6).
+Every remaining failure except q3ctf2 is main memory (malloc), mostly fragmentation: the largest free block is far below the free total.
+
+| Map | Bots | Result | Low free | Hunk peak | Zone peak | Reason |
+|---|---:|---|---:|---:|---:|---|
+| q3dm0 | 1 | plays | 381904 | 6973344 | 1841504 |  |
+| q3dm1 | 1 | plays | 563048 | 4932640 | 1814072 |  |
+| q3dm2 | 1 | plays | 336424 | 5418496 | 1846060 |  |
+| q3dm3 | 2 | plays | 668616 | 4612648 | 1881116 |  |
+| q3dm4 | 3 | plays | 532504 | 6449152 | 2224088 |  |
+| q3dm5 | 2 | plays | 378336 | 5434496 | 1939972 |  |
+| q3dm6 | 5 | plays | 255736 | 7608544 | 2169304 |  |
+| q3dm7 | 4 | fails |  |  |  | malloc: `DEFAULT_MODEL (sarge)` MD3 staging failed |
+| q3dm8 | 4 | plays | 368640 | 7165536 | 2216332 |  |
+| q3dm9 | 4 | fails |  |  |  | malloc: `R_ImageMalloc` 16384, 107368 free, largest 8192 |
+| q3dm10 | 3 | plays | 420000 | 5935328 | 2062412 |  |
+| q3dm11 | 4 | fails |  |  |  | malloc: `R_ImageMalloc` 262144 (`fan_grate.tga`, no picmip), largest 200704 |
+| q3dm12 | 6 | fails |  |  |  | malloc: zlib inflate state (`FS_Read: inflate error -4`) |
+| q3dm13 | 3 | plays | 289160 | 6065536 | 2059388 |  |
+| q3dm14 | 4 | fails |  |  |  | malloc: `R_ImageMalloc` 16384, 103104 free, largest 4096 |
+| q3dm15 | 3 | fails |  |  |  | malloc: `R_ImageMalloc` 262144 (`rusty_pentagrate.tga`) |
+| q3dm16 | 3 | plays | 597128 | 4944448 | 2206956 |  |
+| q3dm17 | 3 | plays | 627360 | 4250936 | 2028996 |  |
+| q3dm18 | 5 | fails |  |  |  | malloc: `R_ImageMalloc` (low point 240200) |
+| q3dm19 | 3 | plays | 253168 | 4642984 | 1914108 |  |
+| q3tourney1 | 1 | plays | 685848 | 5374304 | 1870004 |  |
+| q3tourney2 | 1 | plays | 474256 | 6020608 | 1907328 |  |
+| q3tourney3 | 1 | plays | 518896 | 4707400 | 1911720 |  |
+| q3tourney4 | 1 | plays | 292096 | 4927160 | 1852024 |  |
+| q3tourney5 | 1 | plays | 807504 | 3531660 | 1749344 |  |
+| q3tourney6 | 1 | plays | 408960 | 4488944 | 1893256 |  |
+| q3ctf1 | 4 | fails |  |  |  | malloc: `R_ImageMalloc` 16384, 100712 free, largest 12288 |
+| q3ctf2 | 4 | fails |  |  |  | zone: `Z_Malloc` 126868 (botlib); 64 MB peaks hunk 15702900, zone 3603108 |
+| q3ctf3 | 4 | fails |  |  |  | malloc: `R_ImageMalloc` 65536, 153920 free, largest 57344 |
+| q3ctf4 | 4 | plays | 501208 | 4922552 | 2202664 |  |
+
+| Release | text | data | bss |
+|---|---:|---:|---:|
+| QGC-27 (main 2c06518) | 1936712 | 491556 | 6483680 |
+| fix B | 1940000 | 491952 | 6492928 |
+| delta | +3288 | +396 | +9248 (grid cache 8192 + tags 1024) |
+
+Release and debug: 143 warnings.

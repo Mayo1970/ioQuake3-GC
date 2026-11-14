@@ -846,6 +846,9 @@ typedef struct {
 	vec3_t		lightGridInverseSize;
 	int			lightGridBounds[3];
 	byte		*lightGridData;
+#ifdef HW_DOL
+	unsigned int lightGridAram;
+#endif
 
 
 	int			numClusters;
@@ -888,6 +891,13 @@ typedef struct model_s {
 #define	MAX_MOD_KNOWN	1024
 
 void		R_ModelInit (void);
+#ifdef HW_DOL
+unsigned int R_GridAramAlloc( unsigned int size );
+void R_GridCacheReset( void );
+#ifdef GC_DEBUG
+void R_GridCacheReport( void );
+#endif
+#endif
 model_t		*R_GetModelByHandle( qhandle_t hModel );
 int			R_LerpTag( orientation_t *tag, qhandle_t handle, int startFrame, int endFrame, 
 					 float frac, const char *tagName );

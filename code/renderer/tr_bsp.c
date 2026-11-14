@@ -22,6 +22,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // tr_map.c
 
 #include "tr_local.h"
+#ifdef HW_DOL
+#include "../sys/gc_aram.h"
+#endif
 
 /*
 
@@ -213,7 +216,14 @@ static	void R_LoadLightmaps( lump_t *l ) {
 	if ( !len ) {
 		return;
 	}
+#ifdef HW_DOL
+	if ( l->fileofs < 0 || l->filelen < 0 || l->fileofs + l->filelen > s_bspLength ) {
+		R_BspClose();
+		ri.Error( ERR_DROP, "RE_LoadWorldMap: bad lump offset" );
+	}
+#else
 	buf = fileBase + l->fileofs;
+#endif
 
 	// we are about to upload textures
 	R_SyncRenderThread();
@@ -232,9 +242,28 @@ static	void R_LoadLightmaps( lump_t *l ) {
 	}
 
 	tr.lightmaps = ri.Hunk_Alloc( tr.numLightmaps * sizeof(image_t *), h_low );
+#ifdef HW_DOL
+	buf = ri.Hunk_AllocateTempMemory( LIGHTMAP_SIZE*LIGHTMAP_SIZE*3 );
+#endif
 	for ( i = 0 ; i < tr.numLightmaps ; i++ ) {
 		// expand the 24 bit on-disk to 32 bit
+#ifdef HW_DOL
+		/* The one-lightmap hack adds a lightmap the lump does not hold: reuse the last one read. */
+		if ( i >= len / ( LIGHTMAP_SIZE*LIGHTMAP_SIZE*3 ) ) {
+			buf_p = buf;
+		} else {
+		R_BspSeekTo( l->fileofs + i * LIGHTMAP_SIZE*LIGHTMAP_SIZE * 3 );
+		if ( FS_Read( buf, LIGHTMAP_SIZE*LIGHTMAP_SIZE*3, s_bspFile ) != LIGHTMAP_SIZE*LIGHTMAP_SIZE*3 ) {
+			ri.Hunk_FreeTempMemory( buf );
+			R_BspClose();
+			ri.Error( ERR_DROP, "RE_LoadWorldMap: short read" );
+		}
+		s_bspPos += LIGHTMAP_SIZE*LIGHTMAP_SIZE*3;
+		buf_p = buf;
+		}
+#else
 		buf_p = buf + i * LIGHTMAP_SIZE*LIGHTMAP_SIZE * 3;
+#endif
 
 		if ( r_lightmap->integer == 2 )
 		{	// color code by intensity as development tool	(FIXME: check range)
@@ -274,6 +303,9 @@ static	void R_LoadLightmaps( lump_t *l ) {
 		tr.lightmaps[i] = R_CreateImage( va("*lightmap%d",i), image, 
 			LIGHTMAP_SIZE, LIGHTMAP_SIZE, qfalse, qfalse, GL_CLAMP_TO_EDGE );
 	}
+#ifdef HW_DOL
+	ri.Hunk_FreeTempMemory( buf );
+#endif
 
 	if ( r_lightmap->integer == 2 )	{
 		ri.Printf( PRINT_ALL, "Brightest lightmap value: %d\n", ( int ) ( maxIntensity * 255 ) );
@@ -1368,6 +1400,155 @@ R_LoadSurfaces
 ===============
 */
 static	void R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump ) {
+#ifdef HW_DOL
+	dsurface_t	*in, local;
+	msurface_t	*out;
+	drawVert_t	*dv, *surfaceVerts;
+	int			*indexes, *surfaceIndexes;
+	int			count, numVerts, numIndexes, maxVerts, maxIndexes;
+	int			firstVert, firstIndex, chunk, size, pass, i, j;
+	int			vertCapacity, indexCapacity, winVertStart, winVertCount;
+	int			winIndexStart, winIndexCount;
+	int			numFaces, numMeshes, numTriSurfs, numFlares;
+	lump_t		*lumps[3];
+
+	lumps[0] = surfs;
+	lumps[1] = verts;
+	lumps[2] = indexLump;
+	for ( i = 0 ; i < 3 ; i++ ) {
+		if ( lumps[i]->fileofs < 0 || lumps[i]->filelen < 0 ||
+			 lumps[i]->fileofs > s_bspLength ||
+			 lumps[i]->filelen > s_bspLength - lumps[i]->fileofs ) {
+			R_BspClose();
+			ri.Error( ERR_DROP, "RE_LoadWorldMap: bad lump offset" );
+		}
+	}
+	if ( surfs->filelen % sizeof( *in ) || verts->filelen % sizeof( *dv ) ||
+		 indexLump->filelen % sizeof( *indexes ) ) {
+		R_BspClose();
+		ri.Error( ERR_DROP, "LoadMap: funny lump size in %s", s_worldData.name );
+	}
+	count = surfs->filelen / sizeof( *in );
+	out = ri.Hunk_Alloc( count * sizeof( *out ), h_low );
+	s_worldData.surfaces = out;
+	s_worldData.numsurfaces = count;
+	numFaces = numMeshes = numTriSurfs = numFlares = 0;
+	maxVerts = maxIndexes = 0;
+	in = ri.Hunk_AllocateTempMemory( 64 * sizeof( *in ) );
+	dv = NULL;
+	indexes = NULL;
+	winVertStart = winVertCount = winIndexStart = winIndexCount = 0;
+
+	for ( pass = 0 ; pass < 2 ; pass++ ) {
+		for ( i = 0 ; i < count ; i += chunk ) {
+			chunk = count - i;
+			if ( chunk > 64 ) chunk = 64;
+			size = chunk * sizeof( *in );
+			R_BspSeekTo( surfs->fileofs + i * sizeof( *in ) );
+			if ( FS_Read( in, size, s_bspFile ) != size ) {
+				if ( indexes ) ri.Hunk_FreeTempMemory( indexes );
+				if ( dv ) ri.Hunk_FreeTempMemory( dv );
+				ri.Hunk_FreeTempMemory( in );
+				R_BspClose();
+				ri.Error( ERR_DROP, "RE_LoadWorldMap: short read" );
+			}
+			s_bspPos += size;
+			for ( j = 0 ; j < chunk ; j++ ) {
+				local = in[j];
+				firstVert = LittleLong( local.firstVert );
+				numVerts = LittleLong( local.numVerts );
+				firstIndex = LittleLong( local.firstIndex );
+				numIndexes = LittleLong( local.numIndexes );
+				if ( !pass ) {
+					if ( firstVert < 0 || numVerts < 0 || firstVert > verts->filelen / (int)sizeof( *dv ) ||
+						 numVerts > verts->filelen / (int)sizeof( *dv ) - firstVert ||
+						 firstIndex < 0 || numIndexes < 0 || firstIndex > indexLump->filelen / (int)sizeof( *indexes ) ||
+						 numIndexes > indexLump->filelen / (int)sizeof( *indexes ) - firstIndex ) {
+						ri.Hunk_FreeTempMemory( in );
+						R_BspClose();
+						ri.Error( ERR_DROP, "LoadMap: bad surface range in %s", s_worldData.name );
+					}
+					if ( numVerts > maxVerts ) maxVerts = numVerts;
+					if ( numIndexes > maxIndexes ) maxIndexes = numIndexes;
+					continue;
+				}
+				if ( numVerts && ( firstVert < winVertStart ||
+					 firstVert - winVertStart > winVertCount ||
+					 numVerts > winVertCount - ( firstVert - winVertStart ) ) ) {
+					winVertStart = firstVert;
+					winVertCount = verts->filelen / sizeof( *dv ) - firstVert;
+					if ( winVertCount > vertCapacity ) winVertCount = vertCapacity;
+					size = winVertCount * sizeof( *dv );
+					R_BspSeekTo( verts->fileofs + firstVert * sizeof( *dv ) );
+					if ( FS_Read( dv, size, s_bspFile ) != size ) {
+						ri.Hunk_FreeTempMemory( indexes );
+						ri.Hunk_FreeTempMemory( dv );
+						ri.Hunk_FreeTempMemory( in );
+						R_BspClose();
+						ri.Error( ERR_DROP, "RE_LoadWorldMap: short read" );
+					}
+					s_bspPos += size;
+				}
+				if ( numIndexes && ( firstIndex < winIndexStart ||
+					 firstIndex - winIndexStart > winIndexCount ||
+					 numIndexes > winIndexCount - ( firstIndex - winIndexStart ) ) ) {
+					winIndexStart = firstIndex;
+					winIndexCount = indexLump->filelen / sizeof( *indexes ) - firstIndex;
+					if ( winIndexCount > indexCapacity ) winIndexCount = indexCapacity;
+					size = winIndexCount * sizeof( *indexes );
+					R_BspSeekTo( indexLump->fileofs + firstIndex * sizeof( *indexes ) );
+					if ( FS_Read( indexes, size, s_bspFile ) != size ) {
+						ri.Hunk_FreeTempMemory( indexes );
+						ri.Hunk_FreeTempMemory( dv );
+						ri.Hunk_FreeTempMemory( in );
+						R_BspClose();
+						ri.Error( ERR_DROP, "RE_LoadWorldMap: short read" );
+					}
+					s_bspPos += size;
+				}
+				surfaceVerts = numVerts ? dv + ( firstVert - winVertStart ) : dv;
+				surfaceIndexes = numIndexes ? indexes + ( firstIndex - winIndexStart ) : indexes;
+				local.firstVert = local.firstIndex = 0;
+				switch ( LittleLong( local.surfaceType ) ) {
+				case MST_PATCH:
+					ParseMesh( &local, surfaceVerts, out );
+					numMeshes++;
+					break;
+				case MST_TRIANGLE_SOUP:
+					ParseTriSurf( &local, surfaceVerts, out, surfaceIndexes );
+					numTriSurfs++;
+					break;
+				case MST_PLANAR:
+					ParseFace( &local, surfaceVerts, out, surfaceIndexes );
+					numFaces++;
+					break;
+				case MST_FLARE:
+					ParseFlare( &local, surfaceVerts, out, surfaceIndexes );
+					numFlares++;
+					break;
+				default:
+					ri.Hunk_FreeTempMemory( indexes );
+					ri.Hunk_FreeTempMemory( dv );
+					ri.Hunk_FreeTempMemory( in );
+					R_BspClose();
+					ri.Error( ERR_DROP, "Bad surfaceType" );
+				}
+				out++;
+			}
+		}
+		if ( !pass ) {
+			vertCapacity = 65536 / sizeof( *dv );
+			if ( maxVerts > vertCapacity ) vertCapacity = maxVerts;
+			indexCapacity = 32768 / sizeof( *indexes );
+			if ( maxIndexes > indexCapacity ) indexCapacity = maxIndexes;
+			dv = ri.Hunk_AllocateTempMemory( maxVerts > 65536 / sizeof( *dv ) ? maxVerts * sizeof( *dv ) : 65536 );
+			indexes = ri.Hunk_AllocateTempMemory( indexCapacity * sizeof( *indexes ) );
+		}
+	}
+	ri.Hunk_FreeTempMemory( indexes );
+	ri.Hunk_FreeTempMemory( dv );
+	ri.Hunk_FreeTempMemory( in );
+#else
 	dsurface_t	*in;
 	msurface_t	*out;
 	drawVert_t	*dv;
@@ -1421,6 +1602,8 @@ static	void R_LoadSurfaces( lump_t *surfs, lump_t *verts, lump_t *indexLump ) {
 			ri.Error( ERR_DROP, "Bad surfaceType" );
 		}
 	}
+
+#endif
 
 #ifdef PATCH_STITCHING
 	R_StitchAllPatches();
@@ -1793,8 +1976,22 @@ void R_LoadLightGrid( lump_t *l ) {
 	int		numGridPoints;
 	world_t	*w;
 	float	*wMins, *wMaxs;
+#ifdef HW_DOL
+	byte *temp, *buffer;
+	int offset, size, j;
+	unsigned int padded;
+#endif
 
 	w = &s_worldData;
+#ifdef HW_DOL
+	w->lightGridData = NULL;
+	w->lightGridAram = 0;
+	R_GridCacheReset();
+	if ( l->fileofs < 0 || l->filelen < 0 || l->fileofs > s_bspLength || l->filelen > s_bspLength - l->fileofs ) {
+		R_BspClose();
+		ri.Error( ERR_DROP, "RE_LoadWorldMap: bad lump offset" );
+	}
+#endif
 
 	w->lightGridInverseSize[0] = 1.0f / w->lightGridSize[0];
 	w->lightGridInverseSize[1] = 1.0f / w->lightGridSize[1];
@@ -1817,6 +2014,41 @@ void R_LoadLightGrid( lump_t *l ) {
 		return;
 	}
 
+#ifdef HW_DOL
+	if ( !l->filelen ) {
+		return;
+	}
+	padded = ( (unsigned int)l->filelen + 31U ) & ~31U;
+	w->lightGridAram = R_GridAramAlloc( padded );
+	if ( !w->lightGridAram ) {
+		ri.Printf( PRINT_WARNING, "R_LoadLightGrid: no ARAM for the light grid (%i bytes)\n", l->filelen );
+		return;
+	}
+	temp = ri.Hunk_AllocateTempMemory( 32768 + 31 );
+	buffer = (byte *)( ( (unsigned int)temp + 31 ) & ~31 );
+	R_BspSeekTo( l->fileofs );
+	for ( offset = 0; offset < l->filelen; offset += size ) {
+		size = l->filelen - offset;
+		if ( size > 32768 ) size = 32768;
+		if ( FS_Read( buffer, size, s_bspFile ) != size ) {
+			ri.Hunk_FreeTempMemory( temp );
+			R_BspClose();
+			ri.Error( ERR_DROP, "RE_LoadWorldMap: short read" );
+		}
+		s_bspPos += size;
+		for ( j = 0; j < size; j += 8 ) {
+			R_ColorShiftLightingBytes( buffer + j, buffer + j );
+			R_ColorShiftLightingBytes( buffer + j + 3, buffer + j + 3 );
+		}
+		padded = ( size + 31 ) & ~31;
+		Com_Memset( buffer + size, 0, padded - size );
+		GC_ARAM_Write( w->lightGridAram + offset, buffer, padded );
+	}
+	ri.Hunk_FreeTempMemory( temp );
+#ifdef GC_DEBUG
+	ri.Printf( PRINT_ALL, "GC grid: %i points, %i bytes in ARAM at 0x%x\n", numGridPoints, l->filelen, w->lightGridAram );
+#endif
+#else
 	w->lightGridData = ri.Hunk_Alloc( l->filelen, h_low );
 	Com_Memcpy( w->lightGridData, (void *)(fileBase + l->fileofs), l->filelen );
 
@@ -1825,6 +2057,7 @@ void R_LoadLightGrid( lump_t *l ) {
 		R_ColorShiftLightingBytes( &w->lightGridData[i*8], &w->lightGridData[i*8] );
 		R_ColorShiftLightingBytes( &w->lightGridData[i*8+3], &w->lightGridData[i*8+3] );
 	}
+#endif
 }
 
 /*
@@ -2049,11 +2282,7 @@ void RE_LoadWorldMap( const char *name ) {
 		ri.Hunk_FreeTempMemory( block );
 		fileBase = NULL;
 
-		ids[0] = LUMP_LIGHTMAPS;
-		block = R_BspReadLumps( &header, 1, ids, lumps );
-		R_LoadLightmaps( &lumps[0] );
-		ri.Hunk_FreeTempMemory( block );
-		fileBase = NULL;
+		R_LoadLightmaps( &header.lumps[LUMP_LIGHTMAPS] );
 
 		ids[0] = LUMP_PLANES;
 		block = R_BspReadLumps( &header, 1, ids, lumps );
@@ -2069,13 +2298,8 @@ void RE_LoadWorldMap( const char *name ) {
 		ri.Hunk_FreeTempMemory( block );
 		fileBase = NULL;
 
-		ids[0] = LUMP_SURFACES;
-		ids[1] = LUMP_DRAWVERTS;
-		ids[2] = LUMP_DRAWINDEXES;
-		block = R_BspReadLumps( &header, 3, ids, lumps );
-		R_LoadSurfaces( &lumps[0], &lumps[1], &lumps[2] );
-		ri.Hunk_FreeTempMemory( block );
-		fileBase = NULL;
+		R_LoadSurfaces( &header.lumps[LUMP_SURFACES], &header.lumps[LUMP_DRAWVERTS],
+			&header.lumps[LUMP_DRAWINDEXES] );
 
 		ids[0] = LUMP_LEAFSURFACES;
 		block = R_BspReadLumps( &header, 1, ids, lumps );
@@ -2110,11 +2334,7 @@ void RE_LoadWorldMap( const char *name ) {
 		ri.Hunk_FreeTempMemory( block );
 		fileBase = NULL;
 
-		ids[0] = LUMP_LIGHTGRID;
-		block = R_BspReadLumps( &header, 1, ids, lumps );
-		R_LoadLightGrid( &lumps[0] );
-		ri.Hunk_FreeTempMemory( block );
-		fileBase = NULL;
+		R_LoadLightGrid( &header.lumps[LUMP_LIGHTGRID] );
 	}
 #else
 	R_LoadShaders( &header->lumps[LUMP_SHADERS] );

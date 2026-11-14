@@ -1617,7 +1617,16 @@ int FS_Read( void *buffer, int len, fileHandle_t f ) {
 		}
 		return len;
 	} else {
+#ifdef HW_DOL
+		int result = unzReadCurrentFile(fsh[f].handleFiles.file.z, buffer, len);
+
+		if ( result < 0 ) {
+			Com_Error( ERR_DROP, "FS_Read: inflate error %i on %s (out of memory?)", result, fsh[f].name );
+		}
+		return result;
+#else
 		return unzReadCurrentFile(fsh[f].handleFiles.file.z, buffer, len);
+#endif
 	}
 }
 
