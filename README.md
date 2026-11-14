@@ -1,225 +1,295 @@
 # ioQuake3-GC
 
-A port of [ioQuake3](https://github.com/ioquake/ioq3) to the Nintendo GameCube,
-using [devkitPPC](https://devkitpro.org/) and [libogc](https://github.com/devkitPro/libogc),
-with a native GX renderer (no OpenGL layer) and native game modules (no QVM).
+ioQuake3-GC is a port of [ioQuake3](https://github.com/ioquake/ioq3) to the
+Nintendo GameCube. It runs Quake III Arena from a `.dol` file on a stock
+console with 24 MB of main memory.
 
-The engine baseline is [old-mac-quake3](https://github.com/matthewdeaves/old-mac-quake3),
-an ioquake3 tree from the last SDL 1.2 commit, already proven on PowerPC 750 hardware.
-The GX renderer, the pad input and the audio backend come from
-[ioQuake3-wii](https://github.com/Mayo1970/ioQuake3-wii).
-
-Two builds are planned from the same source tree:
-
-| Variant | File | Game dir on SD | Order |
-|---|---|---|---|
-| ioQuake3   | `ioquake3_gc.dol`    | `baseq3` | First |
-| Open Arena | `ioquake3_oa_gc.dol` | `baseoa` | After Quake III Arena is done |
+- Engine baseline: [old-mac-quake3](https://github.com/matthewdeaves/old-mac-quake3)
+  `2f187c0` (ioquake3, 2013-01), vendored under `code/`.
+- Renderer: the ioquake3 renderer with a native GX backend from
+  [ioQuake3-wii](https://github.com/Mayo1970/ioQuake3-wii). No OpenGL layer.
+- Game modules: `qagame`, `cgame` and `ui` are native PowerPC code, linked
+  into the `.dol`. There is no QVM.
+- Toolchain: devkitPPC and libogc 3.2.1. No Nintendo SDK material.
+- Output: one `.dol`. Open Arena is planned after Quake III Arena.
 
 ## Status
 
-**Pre-alpha. Nothing boots yet.** The repository holds the project setup:
-licences, documents and the build contract. The list below is the target, and
-each line moves to "works" only after a test on a real GameCube.
+**Pre-alpha.** No release exists yet.
 
-- [ ] Builds a `.dol` in Docker
-- [ ] Engine core runs (file system, paks, local server)
-- [ ] Native game modules (`qagame`, `cgame`, `ui`) linked into the `.dol`
-- [ ] Fits the 24 MB of main memory
-- [ ] Native GX renderer
-- [ ] GameCube controller input + rumble
-- [ ] Sound and music
-- [ ] Network through the Broadband Adapter
-- [ ] Boots into gameplay on hardware
-- [ ] Open Arena build
+| Area | State |
+|---|---|
+| Build in Docker | Works |
+| Boot, menus, console, cinematics | Works in Dolphin |
+| Maps with bots, stock 24 MB | 22 of 30 maps play in Dolphin (see [Map list](#map-list)) |
+| GX renderer, video modes (480i, 576i, 480p) | Works in Dolphin |
+| Sound effects (ADPCM in ARAM) | Works in Dolphin |
+| Controller input | Code done; Dolphin headless cannot test it |
+| Config save, quit, Reset button | Works; boot and quit tested on hardware by the maintainer |
+| Music | Not done |
+| Rumble | Not done |
+| Network (Broadband Adapter) | Not done; loopback only |
+| On-screen text input | Not done |
+| Open Arena build | Not done |
 
-## Prerequisites (Windows)
-
-### 1. Docker
-
-All builds run in the official devkitPro image. No toolchain is installed on
-the host.
-
-```
-docker pull devkitpro/devkitppc:20261102
-```
-
-The image holds devkitPPC r51 (GCC 16.2), libogc 3.2.1, libfat and
-gamecube-tools (`elf2dol`).
-
-### 2. Game data
-
-You need to bring your own `.pk3` files — none are included in this repo.
-
-### 3. (Optional) Dolphin
-
-[Dolphin](https://dolphin-emu.org/) runs a `.dol` directly. It is used for
-smoke tests only. A result in Dolphin is never a hardware result.
-
----
+The full hardware gate (a map with bots on a real console) is still open.
+A result in Dolphin is not a hardware result. Dolphin does not emulate the
+data cache.
 
 ## Building
 
-All ioq3 sources are vendored under `code/` (already patched for GameCube) —
-no separate patch step, no external checkout.
+All builds run in the official devkitPro Docker image. Do not install a
+toolchain on the host.
 
-> The build system arrives with the first sprint tasks. The commands below
-> are the contract those tasks implement.
+1. Install Docker.
+2. Pull the image:
 
-From the repository root:
+   ```
+   docker pull devkitpro/devkitppc:20261102
+   ```
 
-```
-./tools/docker-make.ps1 clean all       # PowerShell
-./tools/docker-make.sh clean all        # Git Bash
-```
+3. Build from the repository root:
 
-Other targets:
+   ```
+   bash tools/docker-make.sh                        # Git Bash
+   powershell -File tools/docker-make.ps1           # PowerShell
+   ```
 
-```
-make              # ELF + ioquake3_gc.dol
-make dist         # release layout in dist/ioQuake3-GC/
-make iso          # bootable GameCube disc image for Dolphin smoke tests only
-make clean        # wipe all build dirs, dist and any disc image
-```
+The output is `build/ioquake3_gc.dol`. The wrapper passes its arguments to
+`make`.
 
-### Build flags
+| Target | Result |
+|---|---|
+| (none) | `build/ioquake3_gc.elf` and `build/ioquake3_gc.dol` |
+| `dist` | Release layout in `dist/ioQuake3-GC/` |
+| `iso` | A `.gcm` disc image for Dolphin smoke tests only. Delete it after the test. |
+| `clean` | Removes `build/`, `dist/` and all disc images |
 
 | Flag | Effect |
 |---|---|
-| `DEBUG=1` | Adds `-DGC_DEBUG -g`; writes a log file beside the game data. Release builds emit no log file. |
-| `OA=1` | Open Arena build (`-DSTANDALONEOA`). Planned. |
+| `DEBUG=1` | Adds `-DGC_DEBUG -g`. The engine log and the `GC ...` memory reports work only in this build. |
+| `GC_MEM1_MB=64` | Links for a 64 MB MEM1. Use it only with the Dolphin MEM1 override. |
+| `DISC_ID=<id>` | Game ID of the disc image (default `GQ3E`) |
+| `ISO_ROOT=<dir>` | Folder packed into the disc image by `make iso` |
 
-### Outputs
+`make` does not track `DEBUG`. Run `make clean` before you change a flag.
 
-| Variant | DOL path |
-|---|---|
-| ioQuake3   | `build/ioquake3_gc.dol` |
-| Open Arena | `build_oa/ioquake3_oa_gc.dol` |
+To install the `.dol` and the game data on an SD card, read
+[INSTALLATION.md](INSTALLATION.md). You need your own Quake III Arena
+`.pk3` files. This repository holds no game data.
 
-The output is always a `.dol`. A disc image (`make iso`) exists only for
-Dolphin smoke tests, is never committed and is deleted after the test.
+## Main limits
 
-Always run `make clean` before rebuilding after a flag change.
+The GameCube has 24 MB of main memory (MEM1) and 16 MB of audio memory
+(ARAM). The CPU reads ARAM only through DMA. Stock ioquake3 asks for more
+than 60 MB. All numbers below are bytes. 1 MB = 1048576 bytes.
 
----
+### MEM1 (24 MB, 25165824 bytes)
 
-## SD card layout
+#### Static: in the `.dol`
 
-The `.dol` can sit anywhere on the card. The game data lives under one root,
-`quake3/`, the same layout as the Wii port, so one card serves both consoles.
+Release build, `main` at `15c3a42`, `powerpc-eabi-size`:
 
-```
-<dev>:/ioquake3_gc.dol            (any folder; /ipl.dol for PicoBoot)
-<dev>:/quake3/baseq3/pak0.pk3 … pak8.pk3
-```
+| Part | Bytes | Notes |
+|---|---:|---|
+| `text` | 1924072 | Code, `.rodata`, `.eh_frame` |
+| `data` | 489252 | Initialized data |
+| `bss` | 6299136 | All static tables, listed below |
+| **Total** | **8712460** | 8.31 MB |
 
-`<dev>` is the SD adapter the game finds first:
+Largest BSS symbols (64 KB or more):
 
-| Adapter | Device |
-|---|---|
-| SD2SP2 (Serial Port 2) | `sd2sp2:` |
-| SD Gecko, memory card slot A | `carda:` |
-| SD Gecko, memory card slot B | `cardb:` |
+| Symbol | Bytes | Owner |
+|---|---:|---|
+| `g_entities` | 823296 | qagame entities |
+| `cg_entities` | 733184 | cgame entities |
+| `cl` | 679024 | Client state (snapshots, parse entities) |
+| `s_gcMainStack` | 458752 | Main thread stack (448 KB, peak 369840) |
+| `sv` | 312388 | Server state |
+| `clc` | 173628 | Client connection |
+| `tr` | 170540 | Renderer globals |
+| `cgs` | 153812 | cgame static state |
+| `s_rawsamples` | 131072 | Raw sound stream (cinematic audio) |
+| `scratch` | 131072 | Draw-surface radix sort |
+| `memoryPool` (qagame) | 131072 | qagame pool |
+| `svs` | 122976 | Server static state |
+| `cg` | 117004 | cgame frame state |
+| `cls` | 109772 | Client static state |
+| `tess` | 104048 | Renderer tesselator |
+| `s_knownSfx` | 98304 | 1024 sound slots |
+| `cvar_indexes` | 73728 | 1024 cvars |
+| `s_gx_texobjs` | 65536 | GX texture objects |
+| `memoryPool` (ui) | 65536 | q3_ui pool |
 
-Format the card as FAT32.
+#### Dynamic: the heap (Arena1)
 
----
+Allocated at boot or at renderer start. They stay for the whole session.
 
-## Installing on GameCube
+| Part | Bytes | Notes |
+|---|---:|---|
+| Hunk | 8388608 | `com_hunkMegs` 8 (minimum 6). The clamp gives a smaller hunk if 8 MB does not fit. |
+| Zone | 2883584 | 2.75 MB, Quake3e size buckets |
+| Small zone | 131072 | Peak about 38 KB |
+| XFB 0 (console, reused by GX) | 614400 | 737280 in 576-line modes |
+| XFB 1 | 614400 | 737280 in 576-line modes |
+| GX FIFO | 262144 | |
+| GX vertex ring | 262144 | 2 x 128 KB |
+| Sound DMA ring | 65536 | 32 blocks of 2048, 32 kHz stereo |
+| Sound decode cache | 131072 | 16 slots of 4096 samples |
+| Sound staging | 12288 | ARAM read and prefetch |
+| Sound chunk metadata | 36768 | 3064 chunks |
+| MD3 frame buffers | 16000 | 2 x 8000, current and old frame |
+| FAT cache | 131072 | 4 pages x 64 sectors, mounted SD device only |
+| Disc window and FST | 32768 + FST | Disc image boot only |
 
-See **[INSTALLATION.md](INSTALLATION.md)** for the full step-by-step,
-including where to get the required game files and exactly where to place
-them.
+Kept free by the hunk clamp: `GC_HUNK_RESERVE` 2621440 (textures 2.25 MB,
+GX FIFO 0.25 MB) and `GC_HUNK_SLACK` 65536.
 
----
+#### Dynamic: per map
 
-## Controls (GameCube controller)
+| Part | Size | Notes |
+|---|---:|---|
+| Textures | 1.6 to 2.1 MB per map | One `memalign` buffer per texture. `RGB565`, `RGB5A3` or `CMPR`. `r_picmip 2`, cap 256x256. |
+| Hunk use | 3.4 to 7.9 MB peak | World, collision, botlib AAS, models, shaders, entities |
+| Zone use | 1.7 to 2.3 MB peak | |
 
-Planned layout. It follows the dual-stick layout of the PS3 port, mapped to
-the GameCube pad. Buttons will be rebindable from the in-game menu.
+#### Dynamic: short-lived
 
-### In-game
+| Part | Bytes | When |
+|---|---:|---|
+| Image decode buffer | up to 262144 | One image load, at the upload size |
+| MD3 staging | 32768 | One MD3 load |
+| Shader text staging | about 423000 | Renderer start, until the copy to ARAM |
+| zlib inflate state | about 40000 | Each read from a `.pk3` |
+| Cinematic block | 2065940 | Hunk temp memory, while a RoQ plays |
+| Patch build (`planes` + `facets`) | 696320 | Hunk temp memory, per curved surface |
+| BSP read windows | about 105000 | Hunk temp memory, during the world load |
 
-| Input | Action |
-|---|---|
-| Control stick | Move (forward/back + strafe) |
-| C-stick | Look (yaw + pitch) |
-| **R** | Fire |
-| **L** | Zoom |
-| **A** | Jump |
-| **B** | Crouch |
-| **Y** | Previous weapon |
-| **X** | Next weapon |
-| **Z** | Scoreboard |
-| **D-pad** | Arrow keys |
-| **Start** | Menu (Escape) |
-| **Z + A** | Open chat |
-| **Z + Y** | Toggle console |
-| **Z + Start** | Quit to the loader |
+The lowest free main memory during a map load is 288640 bytes (q3ctf1,
+4 bots). Most failures in the map list come from a full or fragmented heap.
 
-### Menus
+### ARAM (16 MB, 16777216 bytes)
 
-| Input | Action |
-|---|---|
-| Control stick / C-stick | Move cursor |
-| D-pad | Arrow keys |
-| **A** | Confirm (Enter) |
-| **B** | Back (Escape) |
-| **Start** | Escape |
+| Region | Address | Bytes | Use |
+|---|---|---:|---|
+| OS reserve | `0x000000` | 16384 | libogc `AR_Init` |
+| Models | `0x004000` | 9437184 | MD3 vertex frames from the bottom. The BSP light grid from the top (q3dm19: 3633376). |
+| Shader text | `0x904000` | 1048576 | All `.shader` script text, compressed. 423073 used. |
+| Sound | `0xA04000` | 6275072 | 4-bit ADPCM, 3064 chunks, about 392 s at 32 kHz |
+| **Total** | | **16777216** | |
 
-A WaveBird has no rumble motor. Rumble is never required to play.
+A model that does not fit in the model region fails as a whole.
+The renderer reads MD3 frames and the light grid back through DMA.
+The light grid uses an 8 KB cache in BSS.
 
----
+## Map list
 
-## Memory budget
+Results from headless Dolphin 5.0-17995, stock 24 MB, no memory override,
+`DEBUG=1`, `devmap <map>`, bots at skill 3. Bot count comes from
+`scripts/arenas.txt`. q3tourney maps run as Tournament. CTF maps run as
+Capture the Flag with 4 bots. These are not hardware results.
 
-The GameCube has 24 MB of main memory and 16 MB of audio memory (ARAM, DMA
-access only). Stock ioquake3 asks for more than 60 MB. The port closes that
-gap with:
+**22 of 30 maps load and play.**
 
-- **Native game modules.** `qagame`, `cgame` and `ui` are compiled to PowerPC
-  and linked into the `.dol`. No QVM bytecode and no interpreter tables on
-  the hunk.
-- **16-bit GX textures** (`RGB565` / `RGB5A3`) with a `r_picmip` default
-  chosen for the texture budget.
-- **Sound data in ARAM**, paged to main memory through DMA.
-- **Smaller static tables** (BSS), sized for a console, with ideas taken
-  from [q3ce](https://code.google.com/archive/p/q3ce/).
+| Map | Bots | Result | Lowest free MEM1 | Cause of failure |
+|---|---:|---|---:|---|
+| q3dm0 | 1 | Plays | 594056 | |
+| q3dm1 | 1 | Plays | 735712 | |
+| q3dm2 | 1 | Plays | 542144 | |
+| q3dm3 | 2 | Plays | 899728 | |
+| q3dm4 | 3 | Plays | 743040 | |
+| q3dm5 | 2 | Plays | 586808 | |
+| q3dm6 | 5 | Plays | 476152 | |
+| q3dm7 | 4 | Plays | 342056 | |
+| q3dm8 | 4 | Plays | 592880 | |
+| q3dm9 | 4 | **Fails** | | Heap full: zlib inflate state (`FS_Read: inflate error -4`) |
+| q3dm10 | 3 | Plays | 635744 | |
+| q3dm11 | 4 | **Fails** | | Heap: 262144 for `textures/sfx/fan.tga` (no picmip); largest block 217088 |
+| q3dm12 | 6 | **Fails** | | Heap: 262144 for `fan.tga`; largest block 114688 |
+| q3dm13 | 3 | Plays | 508288 | |
+| q3dm14 | 4 | **Fails** | | Heap full: zlib inflate state |
+| q3dm15 | 3 | **Fails** | | Heap fragmentation: 131072 needed, 207472 free, largest block 126976 |
+| q3dm16 | 3 | Plays | 819152 | |
+| q3dm17 | 3 | Plays | 857240 | |
+| q3dm18 | 5 | **Fails** | | Heap full: zlib inflate state on the BSP |
+| q3dm19 | 3 | Plays | 487088 | |
+| q3tourney1 | 1 | Plays | 889392 | |
+| q3tourney2 | 1 | Plays | 675632 | |
+| q3tourney3 | 1 | Plays | 749288 | |
+| q3tourney4 | 1 | Plays | 525960 | |
+| q3tourney5 | 1 | Plays | 1030896 | |
+| q3tourney6 | 1 | Plays | 619312 | |
+| q3ctf1 | 4 | Plays | 288640 | |
+| q3ctf2 | 4 | **Fails** | | Zone full: botlib needs 126868 more. It needs about 7 MB more hunk and 0.7 MB more zone. |
+| q3ctf3 | 4 | **Fails** | | Hunk full: world surfaces |
+| q3ctf4 | 4 | Plays | 711104 | |
 
-The measured table goes here when the engine runs.
+Failing maps: q3dm9, q3dm11, q3dm12, q3dm14, q3dm15, q3dm18, q3ctf2,
+q3ctf3. With fewer bots, a failing map can still fail: the peak is in the
+map load.
 
----
+## Known limits
 
-## Important notes
-
-- The CPU is big-endian. File and network data is little-endian and is
-  swapped explicitly.
-- Every buffer that GX, the audio DMA or the SD driver reads is 32-byte
-  aligned and flushed (`DCFlushRange`) before use. Dolphin does not emulate
-  the data cache, so only real hardware shows a missing flush.
-- All `.sh` scripts must have LF line endings.
-- No Nintendo SDK material is used: only devkitPPC and libogc.
-
-## Credits
-
-- **[ioQuake3](https://github.com/ioquake/ioq3)** — the upstream engine this port is based on.
-- **[old-mac-quake3](https://github.com/matthewdeaves/old-mac-quake3)** (Matthew Deaves) — the PowerPC-proven ioquake3 baseline.
-- **[ioQuake3-wii](https://github.com/Mayo1970/ioQuake3-wii)** — native GX renderer, GameCube pad input and audio backend.
-- **[q3ce](https://code.google.com/archive/p/q3ce/)** — Quake 3 Arena CE, reference for a small memory footprint.
-- **[devkitPro](https://devkitpro.org/)** — devkitPPC, libogc, libfat and gamecube-tools.
-- **[Dolphin](https://dolphin-emu.org/)** — emulator used for smoke tests.
-
----
+- **Memory.** 8 of 30 maps do not load (see above). The margin on maps that
+  play is small (288640 bytes on q3ctf1).
+- **Lower detail to fit 24 MB:**
+  - `r_picmip 2` and a 256x256 texture cap. Textures are 16-bit or `CMPR`.
+  - Player models use only their lowest LOD.
+  - When less than 4 MB of hunk is free, cgame loads one player model
+    (sarge) for all bots that have no model loaded.
+  - No decals, blood, gibs, brass, smoke trails or impact effects. The
+    player blob shadow stays.
+  - Items show as sprites. No 3D models in the HUD.
+  - No stencil shadows (GX has no stencil).
+  - 256 particles, 128 local entities, 1024 sounds, 1 font.
+  - No bot reply chats.
+- **Cinematics** larger than 512x256 do not play.
+- **No music.** Only sound effects play.
+- **Sound paging.** The 16-slot decode cache can thrash with many voices.
+  A cache miss costs about 335 us in Dolphin.
+- **No network.** The Broadband Adapter is not supported. Only local
+  play with bots works.
+- **No rumble.**
+- **No on-screen keyboard.** You cannot type a name or a chat message.
+- **One controller.** Only the first connected pad works.
+- **Load time.** A map load takes about 3 minutes in Dolphin (q3dm1:
+  190 s). The hardware time is not measured.
+- **No log in release builds.** Use `DEBUG=1` for the engine log.
+- **No save from a disc image.** Config saves need an SD card.
+- **Hardware.** Only a boot, config and quit test ran on a real console
+  (Action Replay SD loader, Datel SD adapter in slot B, FAT16). On one boot
+  the game showed "No quake3 folder found". The next boot worked. The cause
+  is not known.
+- **Open Arena** is not available yet.
 
 ## AI disclosure
 
-Parts of this port are developed with the assistance of AI coding tools. AI is
-used for code generation, debugging, porting guidance, and documentation. All
-AI-generated code is reviewed, and tested on hardware before a release.
+This port is developed with the assistance of AI coding tools.
 
----
+- **Claude Code** (Anthropic) plans the tasks, writes the briefs, reviews
+  every change, runs the Docker builds and the Dolphin tests, and writes
+  the documents.
+- **OpenCode** with a DeepSeek model and **Codex** (OpenAI) write most of
+  the code. Their commits use the name `Stroggo`.
+- The maintainer makes every design decision, chooses the memory cuts and
+  runs all hardware tests.
+
+AI-written code is reviewed before a merge. A release is tested on real
+hardware before it ships.
+
+## Credits
+
+- [ioQuake3](https://github.com/ioquake/ioq3): the upstream engine.
+- [old-mac-quake3](https://github.com/matthewdeaves/old-mac-quake3)
+  (Matthew Deaves): the PowerPC ioquake3 baseline.
+- [ioQuake3-wii](https://github.com/Mayo1970/ioQuake3-wii): GX backend,
+  pad input and audio reference.
+- [Quake3e](https://github.com/ec-/Quake3e): zone allocator.
+- [q3ce](https://code.google.com/archive/p/q3ce/): small-memory ideas.
+- [devkitPro](https://devkitpro.org/): devkitPPC, libogc, libfat.
+- [Dolphin](https://dolphin-emu.org/): emulator for smoke tests.
 
 ## License
 
-ioQuake3 is GPLv2. This port layer is also GPLv2. See `LICENSE` and
-`THIRD_PARTY_NOTICES.md`.
+GPLv2. See [LICENSE](LICENSE) and
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
