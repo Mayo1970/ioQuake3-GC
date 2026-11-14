@@ -5,6 +5,7 @@
 #include "../qcommon/q_shared.h"
 
 void GC_InitConsole(void);
+qboolean GC_ResetPressed(void);
 qboolean GC_InitStorage(int argc, char **argv);
 void GC_WaitForStorage(int argc, char **argv);
 GXRModeObj *GC_GetVideoMode(void);
