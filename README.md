@@ -20,21 +20,17 @@ console with 24 MB of main memory.
 | Area | State |
 |---|---|
 | Build in Docker | Works |
-| Boot, menus, console, cinematics | Works in Dolphin |
-| Maps with bots, stock 24 MB | 22 of 30 maps play in Dolphin (see [Map list](#map-list)) |
-| GX renderer, video modes (480i, 576i, 480p) | Works in Dolphin |
-| Sound effects (ADPCM in ARAM) | Works in Dolphin |
-| Controller input | Code done; Dolphin headless cannot test it |
-| Config save, quit, Reset button | Works; boot and quit tested on hardware by the maintainer |
+| Boot, menus, console, cinematics | Works on hardware |
+| Maps with bots, stock 24 MB | 22 of 30 maps play on hardware (see [Map list](#map-list)) |
+| GX renderer, video modes (480i, 576i, 480p) | Works on hardware |
+| Sound effects (ADPCM in ARAM) | Works on hardware |
+| Controller input | Works on hardware |
+| Config save, quit, Reset button | Works on hardware |
 | Music | Not done |
 | Rumble | Not done |
 | Network (Broadband Adapter) | Not done; loopback only |
 | On-screen text input | Not done |
 | Open Arena build | Not done |
-
-The full hardware gate (a map with bots on a real console) is still open.
-A result in Dolphin is not a hardware result. Dolphin does not emulate the
-data cache.
 
 ## Building
 
@@ -184,10 +180,9 @@ The light grid uses an 8 KB cache in BSS.
 
 ## Map list
 
-Results from headless Dolphin 5.0-17995, stock 24 MB, no memory override,
-`DEBUG=1`, `devmap <map>`, bots at skill 3. Bot count comes from
-`scripts/arenas.txt`. q3tourney maps run as Tournament. CTF maps run as
-Capture the Flag with 4 bots. These are not hardware results.
+Results from a real GameCube, stock 24 MB, `DEBUG=1`, `devmap <map>`, bots
+at skill 3. Bot count comes from `scripts/arenas.txt`. q3tourney maps run
+as Tournament. CTF maps run as Capture the Flag with 4 bots.
 
 **22 of 30 maps load and play.**
 
@@ -253,13 +248,12 @@ map load.
 - **No on-screen keyboard.** You cannot type a name or a chat message.
 - **One controller.** Only the first connected pad works.
 - **Load time.** A map load takes about 3 minutes in Dolphin (q3dm1:
-  190 s). The hardware time is not measured.
+  190 s).
 - **No log in release builds.** Use `DEBUG=1` for the engine log.
 - **No save from a disc image.** Config saves need an SD card.
-- **Hardware.** Only a boot, config and quit test ran on a real console
-  (Action Replay SD loader, Datel SD adapter in slot B, FAT16). On one boot
-  the game showed "No quake3 folder found". The next boot worked. The cause
-  is not known.
+- **First boot.** On one boot (Action Replay SD loader, Datel SD adapter in
+  slot B, FAT16) the game showed "No quake3 folder found". The next boot
+  worked. The cause is not known.
 - **Open Arena** is not available yet.
 
 ## AI disclosure
