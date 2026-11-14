@@ -287,8 +287,20 @@ void QDECL Com_Error( int code, const char *fmt, ... ) {
 	static int	errorCount;
 	int			currentTime;
 
+#ifdef HW_DOL
+	if(com_errorEntered) {
+		char	errmsg[MAXPRINTMSG];
+
+		va_start (argptr,fmt);
+		Q_vsnprintf (errmsg, sizeof(errmsg), fmt, argptr);
+		va_end (argptr);
+
+		Sys_Error("%s\nwhile recovering from: %s", errmsg, com_errorMessage);
+	}
+#else
 	if(com_errorEntered)
 		Sys_Error("recursive error after: %s", com_errorMessage);
+#endif
 
 	com_errorEntered = qtrue;
 
