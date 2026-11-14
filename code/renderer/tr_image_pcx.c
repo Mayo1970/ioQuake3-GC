@@ -48,6 +48,58 @@ typedef struct {
 	unsigned char	data[];
 } pcx_t;
 
+#ifdef HW_DOL
+void R_LoadPCX( const char *filename, byte **pic, int *width, int *height ) {
+	union { byte *b; void *v; } file;
+	pcx_t *pcx;
+	byte *p, *end, *palette, *out, *band;
+	int len, w, h, shift, block, outWidth, outHeight, row, x, run = 0, value = 0;
+	*pic = NULL;
+	if ( width ) *width = 0;
+	if ( height ) *height = 0;
+	len = ri.FS_ReadFile( (char *)filename, &file.v );
+	if ( !file.b || len < 0 ) return;
+	if ( len < (int)sizeof( pcx_t ) + 769 ) goto bad;
+	pcx = (pcx_t *)file.b; end = file.b + len;
+	w = (unsigned short)( LittleShort( pcx->xmax ) + 1 );
+	h = (unsigned short)( LittleShort( pcx->ymax ) + 1 );
+	if ( pcx->manufacturer != 0x0a || pcx->version != 5 || pcx->encoding != 1 ||
+		pcx->color_planes != 1 || pcx->bits_per_pixel != 8 || !w || !h || w >= 1024 || h >= 1024 || end[-769] != 0x0c ) goto bad;
+	palette = end - 768; p = pcx->data;
+	shift = R_GCImageShift( w, h ); block = 1 << shift;
+	outWidth = w >> shift; outHeight = h >> shift;
+	out = R_IMAGE_MALLOC( outWidth * outHeight * 4 );
+	band = R_IMAGE_MALLOC( w * 4 * block );
+	for ( row = 0; row < h; row++ ) {
+		byte *dst = band + ( row % block ) * w * 4;
+		for ( x = 0; x < w; x++ ) {
+			if ( !run ) {
+				if ( p >= end - 769 ) goto truncated;
+				value = *p++;
+				if ( ( value & 0xc0 ) == 0xc0 ) {
+					run = value & 0x3f;
+					if ( !run || p >= end - 769 ) goto truncated;
+					value = *p++;
+				} else run = 1;
+			}
+			run--;
+			dst[x*4] = palette[value*3]; dst[x*4+1] = palette[value*3+1];
+			dst[x*4+2] = palette[value*3+2]; dst[x*4+3] = 255;
+		}
+		if ( row % block == block - 1 ) R_GCReduceRows( band, out + ( row / block ) * outWidth * 4, w, shift );
+	}
+	R_IMAGE_FREE( band ); ri.FS_FreeFile( file.v );
+	if ( width ) *width = outWidth;
+	if ( height ) *height = outHeight;
+	*pic = out;
+	return;
+truncated:
+	R_IMAGE_FREE( band ); R_IMAGE_FREE( out );
+bad:
+	ri.Printf( PRINT_ALL, "Bad or truncated pcx file %s\n", filename );
+	ri.FS_FreeFile( file.v );
+}
+#else
 void R_LoadPCX ( const char *filename, byte **pic, int *width, int *height)
 {
 	union {
@@ -173,3 +225,5 @@ void R_LoadPCX ( const char *filename, byte **pic, int *width, int *height)
 	ri.FS_FreeFile (pcx);
 	ri.Free (pic8);
 }
+
+#endif

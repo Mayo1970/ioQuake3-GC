@@ -113,6 +113,8 @@ void     GXBE_TexSubImage2D(int texnum, int fullW, int fullH, const byte *data);
 
 #ifdef GC_DEBUG
 void     GXBE_TexHeapReport(const char *where);
+void     GXBE_MemSample(const char *what, const char *name);
+unsigned int GXBE_LargestFree(void);
 #endif
 
 #endif /* TR_GX_H */

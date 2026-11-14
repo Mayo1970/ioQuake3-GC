@@ -25,13 +25,27 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifdef HW_DOL
 #include <stdlib.h>
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+#include <malloc.h>
+#include <ogc/system.h>
+
+/* Name of the image R_LoadImage is decoding, for the debug memory samples. */
+static const char *gc_imageName;
+#endif
+
 /* Decoded pixels live only until the upload; outside the 3 MB zone (QGC-17). */
 void *R_ImageMalloc( int size ) {
 	void *ptr = malloc( size );
 
 	if ( !ptr ) {
+#if defined(HW_DOL) && defined(GC_DEBUG)
+		ri.Printf( PRINT_ALL, "GC oom: R_ImageMalloc %i bytes for %s, malloc free %u, arena1 %u, largest %u\n", size, gc_imageName ? gc_imageName : "?", mallinfo().fordblks, SYS_GetArena1Size(), GXBE_LargestFree() );
+#endif
 		ri.Error( ERR_DROP, "R_ImageMalloc: failed on %i bytes", size );
 	}
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	GXBE_MemSample( "image", gc_imageName );
+#endif
 	return ptr;
 }
 
@@ -43,6 +57,34 @@ int r_gcJpgMaxDim;
 int r_gcJpgPicmipShift;	/* in: picmip shift the decoder may take over (0 = none) */
 int r_gcJpgShift;	/* out: picmip shift the decoder took */
 int r_gcPicmipBias;	/* Upload32 subtracts this from r_picmip */
+
+int R_GCImageShift( int width, int height ) {
+	unsigned int maxSide = width > height ? width : height;
+	int shift = 0, picmip;
+
+	r_gcJpgShift = 0;
+	if ( r_gcJpgMaxDim <= 0 ) return 0;
+	while ( shift < 3 && shift < r_gcJpgPicmipShift && ( maxSide >> ( shift + 1 ) ) >= 1 ) shift++;
+	picmip = shift;
+	while ( shift < 3 && ( maxSide >> ( shift + 1 ) ) >= (unsigned int)r_gcJpgMaxDim ) shift++;
+	while ( shift && ( ( width % ( 1 << shift ) ) || ( height % ( 1 << shift ) ) ) ) shift--;
+	r_gcJpgShift = picmip < shift ? picmip : shift;
+	return shift;
+}
+
+void R_GCReduceRows( const byte *rows, byte *out, int width, int shift ) {
+	int block = 1 << shift, x, y, dx, c;
+	for ( x = 0; x < width / block; x++ ) {
+		for ( c = 0; c < 4; c++ ) {
+			unsigned int sum = 0;
+			for ( y = 0; y < block; y++ )
+				for ( dx = 0; dx < block; dx++ )
+					sum += rows[( y * width + x * block + dx ) * 4 + c];
+			out[x * 4 + c] = sum / ( block * block );
+		}
+	}
+}
+
 #endif
 
 static byte			 s_intensitytable[256];
@@ -1065,7 +1107,13 @@ image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmi
 	r_gcJpgMaxDim = glConfig.maxTextureSize;
 	r_gcJpgPicmipShift = allowPicmip ? r_picmip->integer : 0;
 	r_gcJpgShift = 0;
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	gc_imageName = name;
+#endif
 	R_LoadImage( name, &pic, &width, &height );
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	gc_imageName = NULL;
+#endif
 	r_gcJpgMaxDim = 0;
 	r_gcJpgPicmipShift = 0;
 	if ( pic == NULL ) {

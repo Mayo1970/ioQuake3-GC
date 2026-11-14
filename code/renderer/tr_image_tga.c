@@ -42,7 +42,9 @@ void R_LoadTGA ( const char *name, byte **pic, int *width, int *height)
 {
 	unsigned	columns, rows, numPixels;
 	byte	*pixbuf;
+	#ifndef HW_DOL
 	int		row, column;
+	#endif
 	byte	*buf_p;
 	byte	*end;
 	union {
@@ -126,6 +128,61 @@ void R_LoadTGA ( const char *name, byte **pic, int *width, int *height)
 	}
 
 
+#ifdef HW_DOL
+	{
+		int shift = R_GCImageShift( columns, rows ), block = 1 << shift;
+		int outWidth = columns >> shift, outHeight = rows >> shift;
+		int sourceRow, x, remaining = 0, repeat = 0, bytes = targa_header.pixel_size / 8;
+		byte color[4] = { 0, 0, 0, 255 }, *band;
+		if ( ( targa_header.image_type == 3 && targa_header.pixel_size != 8 && targa_header.pixel_size != 24 && targa_header.pixel_size != 32 ) ||
+			buf_p + targa_header.id_length > end ) {
+			ri.FS_FreeFile( buffer.v );
+			ri.Error( ERR_DROP, "LoadTGA: invalid header (%s)", name );
+			return;
+		}
+		buf_p += targa_header.id_length;
+		targa_rgba = R_IMAGE_MALLOC( outWidth * outHeight * 4 );
+		band = R_IMAGE_MALLOC( columns * 4 * block );
+		for ( sourceRow = 0; sourceRow < (int)rows; sourceRow++ ) {
+			pixbuf = band + ( sourceRow % block ) * columns * 4;
+			for ( x = 0; x < (int)columns; x++ ) {
+				if ( !remaining ) {
+					if ( targa_header.image_type == 10 ) {
+						if ( buf_p >= end ) goto gc_tga_truncated;
+						remaining = 1 + ( *buf_p & 127 );
+						repeat = *buf_p++ & 128;
+					} else { remaining = 1; repeat = 0; }
+					if ( repeat ) {
+						if ( end - buf_p < bytes ) goto gc_tga_truncated;
+						color[2] = *buf_p++; color[1] = *buf_p++; color[0] = *buf_p++;
+						color[3] = bytes == 4 ? *buf_p++ : 255;
+					}
+				}
+				if ( !repeat ) {
+					if ( end - buf_p < bytes ) goto gc_tga_truncated;
+					if ( bytes == 1 ) { color[0] = color[1] = color[2] = *buf_p++; color[3] = 255; }
+					else { color[2] = *buf_p++; color[1] = *buf_p++; color[0] = *buf_p++; color[3] = bytes == 4 ? *buf_p++ : 255; }
+				}
+				memcpy( pixbuf + x * 4, color, 4 ); remaining--;
+			}
+			if ( sourceRow % block == block - 1 ) {
+				int destRow = sourceRow / block;
+				if ( !( targa_header.attributes & 0x20 ) ) destRow = outHeight - 1 - destRow;
+				R_GCReduceRows( band, targa_rgba + destRow * outWidth * 4, columns, shift );
+			}
+		}
+		R_IMAGE_FREE( band );
+		ri.FS_FreeFile( buffer.v );
+		if ( width ) *width = outWidth;
+		if ( height ) *height = outHeight;
+		*pic = targa_rgba;
+		return;
+	gc_tga_truncated:
+		R_IMAGE_FREE( band ); R_IMAGE_FREE( targa_rgba ); ri.FS_FreeFile( buffer.v );
+		ri.Error( ERR_DROP, "LoadTGA: file truncated (%s)", name );
+		return;
+	}
+#else
 	targa_rgba = R_IMAGE_MALLOC (numPixels);
 
 	if (targa_header.id_length != 0)
@@ -317,4 +374,5 @@ void R_LoadTGA ( const char *name, byte **pic, int *width, int *height)
   *pic = targa_rgba;
 
   ri.FS_FreeFile (buffer.v);
+#endif
 }
