@@ -1034,6 +1034,10 @@ R_Register
 ===============
 */
 #if defined(HW_DOL) && defined(GC_DEBUG)
+static void GC_HeapMap_f( void ) {
+	GC_HeapMap( "now" );
+}
+
 static void GC_TexMem_f( void ) {
 	GXBE_TexHeapReport( "now" );
 	R_MD3AramReport( "now" );
@@ -1194,6 +1198,7 @@ void R_Register( void )
 	ri.Cmd_AddCommand( "imagelist", R_ImageList_f );
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	ri.Cmd_AddCommand( "gc_texmem", GC_TexMem_f );
+	ri.Cmd_AddCommand( "gc_heapmap", GC_HeapMap_f );
 #endif
 	ri.Cmd_AddCommand( "shaderlist", R_ShaderList_f );
 	ri.Cmd_AddCommand( "skinlist", R_SkinList_f );
@@ -1332,6 +1337,7 @@ void RE_Shutdown( qboolean destroyWindow ) {
 	ri.Cmd_RemoveCommand ("imagelist");
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	ri.Cmd_RemoveCommand ("gc_texmem");
+	ri.Cmd_RemoveCommand ("gc_heapmap");
 #endif
 	ri.Cmd_RemoveCommand ("shaderlist");
 	ri.Cmd_RemoveCommand ("skinlist");
@@ -1372,6 +1378,7 @@ void RE_EndRegistration( void ) {
 	}
 #if defined(HW_DOL) && defined(GC_DEBUG)
 	GXBE_TexHeapReport( "end registration" );
+	GC_HeapMap( "end registration" );
 	R_MD3AramReport( "end registration" );
 #endif
 }

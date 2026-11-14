@@ -40,16 +40,21 @@ void *R_ImageMalloc( int size ) {
 	if ( !ptr ) {
 #if defined(HW_DOL) && defined(GC_DEBUG)
 		ri.Printf( PRINT_ALL, "GC oom: R_ImageMalloc %i bytes for %s, malloc free %u, arena1 %u, largest %u\n", size, gc_imageName ? gc_imageName : "?", mallinfo().fordblks, SYS_GetArena1Size(), GXBE_LargestFree() );
+		GC_HeapMap( "oom" );
 #endif
 		ri.Error( ERR_DROP, "R_ImageMalloc: failed on %i bytes", size );
 	}
 #if defined(HW_DOL) && defined(GC_DEBUG)
+	GC_HeapTag( ptr, size, 'I' );
 	GXBE_MemSample( "image", gc_imageName );
 #endif
 	return ptr;
 }
 
 void R_ImageFree( void *ptr ) {
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	GC_HeapUntag( ptr );
+#endif
 	free( ptr );
 }
 

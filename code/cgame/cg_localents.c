@@ -26,7 +26,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "cg_local.h"
 
+#ifdef HW_DOL
+#define	MAX_LOCAL_ENTITIES	128
+#else
 #define	MAX_LOCAL_ENTITIES	512
+#endif
 localEntity_t	cg_localEntities[MAX_LOCAL_ENTITIES];
 localEntity_t	cg_activeLocalEntities;		// double linked list
 localEntity_t	*cg_freeLocalEntities;		// single linked list
@@ -119,6 +123,9 @@ Leave expanding blood puffs behind gibs
 ================
 */
 void CG_BloodTrail( localEntity_t *le ) {
+#ifdef HW_DOL
+	return;
+#else
 	int		t;
 	int		t2;
 	int		step;
@@ -145,6 +152,7 @@ void CG_BloodTrail( localEntity_t *le ) {
 		// drop a total of 40 units over its lifetime
 		blood->pos.trDelta[2] = 40;
 	}
+#endif
 }
 
 

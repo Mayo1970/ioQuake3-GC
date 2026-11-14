@@ -62,7 +62,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define	MAX_STEP_CHANGE		32
 
 #define	MAX_VERTS_ON_POLY	10
+#ifdef HW_DOL
+#define	MAX_MARK_POLYS		1
+#define CG_DRAW_3D_ICONS 0
+#else
 #define	MAX_MARK_POLYS		256
+#define CG_DRAW_3D_ICONS cg_draw3dIcons.integer
+#endif
 
 #define STAT_MINUS			10	// num frame for '-' stats digit
 

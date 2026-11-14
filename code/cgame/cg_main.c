@@ -611,10 +611,18 @@ static void CG_RegisterSounds( void ) {
 	cgs.media.selectSound = trap_S_RegisterSound( "sound/weapons/change.wav", qfalse );
 	cgs.media.wearOffSound = trap_S_RegisterSound( "sound/items/wearoff.wav", qfalse );
 	cgs.media.useNothingSound = trap_S_RegisterSound( "sound/items/use_nothing.wav", qfalse );
+#ifndef HW_DOL
 	cgs.media.gibSound = trap_S_RegisterSound( "sound/player/gibsplt1.wav", qfalse );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibBounce1Sound = trap_S_RegisterSound( "sound/player/gibimp1.wav", qfalse );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibBounce2Sound = trap_S_RegisterSound( "sound/player/gibimp2.wav", qfalse );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibBounce3Sound = trap_S_RegisterSound( "sound/player/gibimp3.wav", qfalse );
+#endif
 
 #ifdef MISSIONPACK
 	cgs.media.useInvulnerabilitySound = trap_S_RegisterSound( "sound/items/invul_activate.wav", qfalse );
@@ -835,7 +843,9 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.botSkillShaders[3] = trap_R_RegisterShader( "menu/art/skill4.tga" );
 	cgs.media.botSkillShaders[4] = trap_R_RegisterShader( "menu/art/skill5.tga" );
 
+#ifndef HW_DOL
 	cgs.media.viewBloodShader = trap_R_RegisterShader( "viewBloodBlend" );
+#endif
 
 	cgs.media.deferShader = trap_R_RegisterShaderNoMip( "gfx/2d/defer.tga" );
 
@@ -852,7 +862,9 @@ static void CG_RegisterGraphics( void ) {
 	cgs.media.blueProxMine = trap_R_RegisterModel( "models/weaphits/proxmineb.md3" );
 #endif
 	cgs.media.plasmaBallShader = trap_R_RegisterShader( "sprites/plasma1" );
+#ifndef HW_DOL
 	cgs.media.bloodTrailShader = trap_R_RegisterShader( "bloodTrail" );
+#endif
 	cgs.media.lagometerShader = trap_R_RegisterShader("lagometer" );
 	cgs.media.connectionShader = trap_R_RegisterShader( "disconnected" );
 
@@ -921,7 +933,9 @@ static void CG_RegisterGraphics( void ) {
 	}
 
 	if ( cgs.gametype == GT_OBELISK || cg_buildScript.integer ) {
+#ifndef HW_DOL
 		cgs.media.rocketExplosionShader = trap_R_RegisterShader("rocketExplosion");
+#endif
 		cgs.media.overloadBaseModel = trap_R_RegisterModel( "models/powerups/overload_base.md3" );
 		cgs.media.overloadTargetModel = trap_R_RegisterModel( "models/powerups/overload_target.md3" );
 		cgs.media.overloadLightsModel = trap_R_RegisterModel( "models/powerups/overload_lights.md3" );
@@ -948,32 +962,68 @@ static void CG_RegisterGraphics( void ) {
 #endif
 	}
 
+#ifndef HW_DOL
 	cgs.media.armorModel = trap_R_RegisterModel( "models/powerups/armor/armor_yel.md3" );
+#endif
 	cgs.media.armorIcon  = trap_R_RegisterShaderNoMip( "icons/iconr_yellow" );
 
+#ifndef HW_DOL
 	cgs.media.machinegunBrassModel = trap_R_RegisterModel( "models/weapons2/shells/m_shell.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.shotgunBrassModel = trap_R_RegisterModel( "models/weapons2/shells/s_shell.md3" );
+#endif
 
+#ifndef HW_DOL
 	cgs.media.gibAbdomen = trap_R_RegisterModel( "models/gibs/abdomen.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibArm = trap_R_RegisterModel( "models/gibs/arm.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibChest = trap_R_RegisterModel( "models/gibs/chest.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibFist = trap_R_RegisterModel( "models/gibs/fist.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibFoot = trap_R_RegisterModel( "models/gibs/foot.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibForearm = trap_R_RegisterModel( "models/gibs/forearm.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibIntestine = trap_R_RegisterModel( "models/gibs/intestine.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibLeg = trap_R_RegisterModel( "models/gibs/leg.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibSkull = trap_R_RegisterModel( "models/gibs/skull.md3" );
+#endif
+#ifndef HW_DOL
 	cgs.media.gibBrain = trap_R_RegisterModel( "models/gibs/brain.md3" );
+#endif
 
+#ifndef HW_DOL
 	cgs.media.smoke2 = trap_R_RegisterModel( "models/weapons2/shells/s_shell.md3" );
+#endif
 
 	cgs.media.balloonShader = trap_R_RegisterShader( "sprites/balloon3" );
 
+#ifndef HW_DOL
 	cgs.media.bloodExplosionShader = trap_R_RegisterShader( "bloodExplosion" );
+#endif
 
+#ifndef HW_DOL
 	cgs.media.bulletFlashModel = trap_R_RegisterModel("models/weaphits/bullet.md3");
+#endif
+#ifndef HW_DOL
 	cgs.media.ringFlashModel = trap_R_RegisterModel("models/weaphits/ring02.md3");
+#endif
+#ifndef HW_DOL
 	cgs.media.dishFlashModel = trap_R_RegisterModel("models/weaphits/boom01.md3");
+#endif
 #ifdef MISSIONPACK
 	cgs.media.teleportEffectModel = trap_R_RegisterModel( "models/powerups/pop.md3" );
 #else
@@ -1018,13 +1068,25 @@ static void CG_RegisterGraphics( void ) {
 	}
 
 	// wall marks
+#ifndef HW_DOL
 	cgs.media.bulletMarkShader = trap_R_RegisterShader( "gfx/damage/bullet_mrk" );
+#endif
+#ifndef HW_DOL
 	cgs.media.burnMarkShader = trap_R_RegisterShader( "gfx/damage/burn_med_mrk" );
+#endif
+#ifndef HW_DOL
 	cgs.media.holeMarkShader = trap_R_RegisterShader( "gfx/damage/hole_lg_mrk" );
+#endif
+#ifndef HW_DOL
 	cgs.media.energyMarkShader = trap_R_RegisterShader( "gfx/damage/plasma_mrk" );
+#endif
 	cgs.media.shadowMarkShader = trap_R_RegisterShader( "markShadow" );
+#ifndef HW_DOL
 	cgs.media.wakeMarkShader = trap_R_RegisterShader( "wake" );
+#endif
+#ifndef HW_DOL
 	cgs.media.bloodMarkShader = trap_R_RegisterShader( "bloodMark" );
+#endif
 
 	// register the inline models
 	cgs.numInlineModels = trap_CM_NumInlineModels();

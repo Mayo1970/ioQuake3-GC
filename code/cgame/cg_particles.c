@@ -105,7 +105,9 @@ static int	shaderAnimCounts[MAX_SHADER_ANIMS] = {
 static float	shaderAnimSTRatio[MAX_SHADER_ANIMS] = {
 	1.0f
 };
+#ifndef HW_DOL
 static int	numShaderAnims;
+#endif
 // done.
 #else
 static char *shaderAnimNames[MAX_SHADER_ANIMS] = {
@@ -181,6 +183,7 @@ void CG_ClearParticles (void)
 
 	oldtime = cg.time;
 
+#ifndef HW_DOL
 	// Ridah, init the shaderAnims
 	for (i=0; shaderAnimNames[i]; i++) {
 		int j;
@@ -190,6 +193,7 @@ void CG_ClearParticles (void)
 		}
 	}
 	numShaderAnims = i;
+#endif
 	// done.
 
 	initparticles = qtrue;

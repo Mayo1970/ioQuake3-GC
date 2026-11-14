@@ -7,6 +7,11 @@
 
 #include "zutil.h"
 
+#if defined(HW_DOL) && defined(GC_DEBUG)
+void GC_HeapTag( void *ptr, unsigned int size, char tag );
+void GC_HeapUntag( void *ptr );
+#endif
+
 #ifndef NO_DUMMY_DECL
 struct internal_state      {int dummy;}; /* for buggy compilers */
 #endif
@@ -303,14 +308,26 @@ voidpf zcalloc (opaque, items, size)
     unsigned size;
 {
     if (opaque) items += size - size; /* make compiler happy */
+#if defined(HW_DOL) && defined(GC_DEBUG)
+    {
+        voidpf ptr = sizeof(uInt) > 2 ? (voidpf)malloc(items * size) :
+                                        (voidpf)calloc(items, size);
+        GC_HeapTag(ptr, items * size, 'Z');
+        return ptr;
+    }
+#else
     return sizeof(uInt) > 2 ? (voidpf)malloc(items * size) :
                               (voidpf)calloc(items, size);
+#endif
 }
 
 void  zcfree (opaque, ptr)
     voidpf opaque;
     voidpf ptr;
 {
+#if defined(HW_DOL) && defined(GC_DEBUG)
+    GC_HeapUntag(ptr);
+#endif
     free(ptr);
     if (opaque) return; /* make compiler happy */
 }
