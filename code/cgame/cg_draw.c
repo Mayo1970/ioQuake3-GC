@@ -274,7 +274,7 @@ void CG_Draw3DModel( float x, float y, float w, float h, qhandle_t model, qhandl
 	refdef_t		refdef;
 	refEntity_t		ent;
 
-	if ( !cg_draw3dIcons.integer || !cg_drawIcons.integer ) {
+	if ( !CG_DRAW_3D_ICONS || !cg_drawIcons.integer ) {
 		return;
 	}
 
@@ -324,7 +324,7 @@ void CG_DrawHead( float x, float y, float w, float h, int clientNum, vec3_t head
 
 	ci = &cgs.clientinfo[ clientNum ];
 
-	if ( cg_draw3dIcons.integer ) {
+	if ( CG_DRAW_3D_ICONS ) {
 		cm = ci->headModel;
 		if ( !cm ) {
 			return;
@@ -369,7 +369,7 @@ void CG_DrawFlagModel( float x, float y, float w, float h, int team, qboolean fo
 	vec3_t			mins, maxs;
 	qhandle_t		handle;
 
-	if ( !force2D && cg_draw3dIcons.integer ) {
+	if ( !force2D && CG_DRAW_3D_ICONS ) {
 
 		VectorClear( angles );
 
@@ -601,7 +601,7 @@ static void CG_DrawStatusBar( void ) {
 			trap_R_SetColor( NULL );
 
 			// if we didn't draw a 3D icon, draw a 2D icon for ammo
-			if ( !cg_draw3dIcons.integer && cg_drawIcons.integer ) {
+			if ( !CG_DRAW_3D_ICONS && cg_drawIcons.integer ) {
 				qhandle_t	icon;
 
 				icon = cg_weapons[ cg.predictedPlayerState.weapon ].ammoIcon;
@@ -642,7 +642,7 @@ static void CG_DrawStatusBar( void ) {
 		CG_DrawField (370, 432, 3, value);
 		trap_R_SetColor( NULL );
 		// if we didn't draw a 3D icon, draw a 2D icon for armor
-		if ( !cg_draw3dIcons.integer && cg_drawIcons.integer ) {
+		if ( !CG_DRAW_3D_ICONS && cg_drawIcons.integer ) {
 			CG_DrawPic( 370 + CHAR_WIDTH*3 + TEXT_ICON_SPACE, 432, ICON_SIZE, ICON_SIZE, cgs.media.armorIcon );
 		}
 

@@ -2055,6 +2055,9 @@ Draw a mark at the water surface
 ===============
 */
 static void CG_PlayerSplash( centity_t *cent ) {
+#ifdef HW_DOL
+	return;
+#else
 	vec3_t		start, end;
 	trace_t		trace;
 	int			contents;
@@ -2132,6 +2135,7 @@ static void CG_PlayerSplash( centity_t *cent ) {
 	verts[3].modulate[3] = 255;
 
 	trap_R_AddPolyToScene( cgs.media.wakeMarkShader, 4, verts );
+#endif
 }
 
 

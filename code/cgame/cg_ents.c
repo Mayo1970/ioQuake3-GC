@@ -244,12 +244,21 @@ static void CG_Item( centity_t *cent ) {
 	}
 
 	item = &bg_itemlist[ es->modelindex ];
+#ifdef HW_DOL
+	if ( 1 ) {
+#else
 	if ( cg_simpleItems.integer && item->giType != IT_TEAM ) {
+#endif
 		memset( &ent, 0, sizeof( ent ) );
 		ent.reType = RT_SPRITE;
 		VectorCopy( cent->lerpOrigin, ent.origin );
 		ent.radius = 14;
 		ent.customShader = cg_items[es->modelindex].icon;
+#ifdef HW_DOL
+		if ( !ent.customShader ) {
+			return;
+		}
+#endif
 		ent.shaderRGBA[0] = 255;
 		ent.shaderRGBA[1] = 255;
 		ent.shaderRGBA[2] = 255;

@@ -167,9 +167,9 @@ static void CG_DrawPlayerArmorIcon( rectDef_t *rect, qboolean draw2D ) {
 		return;
 	}
 
-	if ( draw2D || ( !cg_draw3dIcons.integer && cg_drawIcons.integer) ) {
+	if ( draw2D || ( !CG_DRAW_3D_ICONS && cg_drawIcons.integer) ) {
 		CG_DrawPic( rect->x, rect->y + rect->h/2 + 1, rect->w, rect->h, cgs.media.armorIcon );
-	} else if (cg_draw3dIcons.integer) {
+	} else if (CG_DRAW_3D_ICONS) {
 		VectorClear( angles );
 		origin[0] = 90;
 		origin[1] = 0;
@@ -215,13 +215,13 @@ static void CG_DrawPlayerAmmoIcon( rectDef_t *rect, qboolean draw2D ) {
 
 	cent = &cg_entities[cg.snap->ps.clientNum];
 
-	if ( draw2D || (!cg_draw3dIcons.integer && cg_drawIcons.integer) ) {
+	if ( draw2D || (!CG_DRAW_3D_ICONS && cg_drawIcons.integer) ) {
 		qhandle_t	icon;
 		icon = cg_weapons[ cg.predictedPlayerState.weapon ].ammoIcon;
 		if ( icon ) {
 			CG_DrawPic( rect->x, rect->y, rect->w, rect->h, icon );
 		}
-	} else if (cg_draw3dIcons.integer) {
+	} else if (CG_DRAW_3D_ICONS) {
 		if ( cent->currentState.weapon && cg_weapons[ cent->currentState.weapon ].ammoModel ) {
 			VectorClear( angles );
 			origin[0] = 70;
@@ -532,7 +532,7 @@ static void CG_DrawSelectedPlayerHead( rectDef_t *rect, qboolean draw2D, qboolea
   ci = cgs.clientinfo + ((voice) ? cgs.currentVoiceClient : sortedTeamPlayers[CG_GetSelectedPlayer()]);
 
   if (ci) {
-  	if ( cg_draw3dIcons.integer ) {
+	if ( CG_DRAW_3D_ICONS ) {
 	  	cm = ci->headModel;
   		if ( !cm ) {
   			return;
@@ -746,7 +746,7 @@ static void CG_HarvesterSkulls(rectDef_t *rect, float scale, vec4_t color, qbool
 	CG_Text_Paint(rect->x + (rect->w - value), rect->y + rect->h, scale, color, num, 0, 0, textStyle);
 
 	if (cg_drawIcons.integer) {
-		if (!force2D && cg_draw3dIcons.integer) {
+		if (!force2D && CG_DRAW_3D_ICONS) {
 			VectorClear(angles);
 			origin[0] = 90;
 			origin[1] = 0;

@@ -494,6 +494,9 @@ This is the spurt of blood when a character gets hit
 =================
 */
 void CG_Bleed( vec3_t origin, int entityNum ) {
+#ifdef HW_DOL
+	return;
+#else
 	localEntity_t	*ex;
 
 	if ( !cg_blood.integer ) {
@@ -517,6 +520,7 @@ void CG_Bleed( vec3_t origin, int entityNum ) {
 	if ( entityNum == cg.snap->ps.clientNum ) {
 		ex->refEntity.renderfx |= RF_THIRD_PERSON;
 	}
+#endif
 }
 
 
@@ -562,6 +566,9 @@ Generated a bunch of gibs launching out from the bodies location
 #define	GIB_VELOCITY	250
 #define	GIB_JUMP		250
 void CG_GibPlayer( vec3_t playerOrigin ) {
+#ifdef HW_DOL
+	return;
+#else
 	vec3_t	origin, velocity;
 
 	if ( !cg_blood.integer ) {
@@ -636,6 +643,7 @@ void CG_GibPlayer( vec3_t playerOrigin ) {
 	velocity[1] = crandom()*GIB_VELOCITY;
 	velocity[2] = GIB_JUMP + crandom()*GIB_VELOCITY;
 	CG_LaunchGib( origin, velocity, cgs.media.gibLeg );
+#endif
 }
 
 /*
@@ -679,6 +687,9 @@ Generated a bunch of gibs launching out from the bodies location
 ===================
 */
 void CG_BigExplode( vec3_t playerOrigin ) {
+#ifdef HW_DOL
+	return;
+#else
 	vec3_t	origin, velocity;
 
 	if ( !cg_blood.integer ) {
@@ -714,5 +725,6 @@ void CG_BigExplode( vec3_t playerOrigin ) {
 	velocity[1] = crandom()*EXP_VELOCITY*2.5;
 	velocity[2] = EXP_JUMP + crandom()*EXP_VELOCITY;
 	CG_LaunchExplode( origin, velocity, cgs.media.smoke2 );
+#endif
 }
 

@@ -552,6 +552,9 @@ CG_DamageBlendBlob
 ===============
 */
 static void CG_DamageBlendBlob( void ) {
+#ifdef HW_DOL
+	return;
+#else
 	int			t;
 	int			maxTime;
 	refEntity_t		ent;
@@ -595,6 +598,7 @@ static void CG_DamageBlendBlob( void ) {
 	ent.shaderRGBA[2] = 255;
 	ent.shaderRGBA[3] = 200 * ( 1.0 - ((float)t / maxTime) );
 	trap_R_AddRefEntityToScene( &ent );
+#endif
 }
 
 
