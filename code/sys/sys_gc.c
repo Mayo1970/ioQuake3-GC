@@ -54,10 +54,35 @@ static qboolean gc_dvd_mounted;
 static GXRModeObj gc_mode;
 static void *gc_console_xfb;
 static qboolean gc_console_hidden;
+static volatile qboolean gc_reset_pressed;
 
 #ifdef GC_DEBUG
 static FILE *gc_log;
 #endif
+
+static void GC_ResetCallback(u32 irq, void *context)
+{
+	(void)irq;
+	(void)context;
+	gc_reset_pressed = qtrue;
+}
+
+qboolean GC_ResetPressed(void)
+{
+	return gc_reset_pressed;
+}
+
+static void GC_UnmountStorage(void)
+{
+	int i;
+
+	for (i = 0; i < GC_NUM_DEVICES; i++) {
+		if (gc_devices[i].mounted) {
+			fatUnmount(gc_devices[i].name);
+			gc_devices[i].mounted = qfalse;
+		}
+	}
+}
 
 void GC_InitConsole(void)
 {
@@ -67,6 +92,7 @@ void GC_InitConsole(void)
 	if (initialized)
 		return;
 	initialized = qtrue;
+	SYS_SetResetCallback(GC_ResetCallback);
 
 	VIDEO_Init();
 	PAD_Init();
@@ -214,7 +240,7 @@ void GC_WaitForStorage(int argc, char **argv)
 			printf("No quake3 folder found on sd2sp2:, carda: or cardb:.\n");
 			printf("Insert the card, then press A to retry. Press START to exit.\n");
 		}
-		if (pressed & PAD_BUTTON_START)
+		if ((pressed & PAD_BUTTON_START) || GC_ResetPressed())
 			Sys_Quit();
 
 		VIDEO_WaitVSync();
@@ -581,8 +607,10 @@ void QDECL Sys_Error(const char *error, ...)
 
 	for (;;) {
 		PAD_ScanPads();
-		if (PAD_ButtonsDown(0) & PAD_BUTTON_START)
+		if ((PAD_ButtonsDown(0) & PAD_BUTTON_START) || GC_ResetPressed()) {
+			GC_UnmountStorage();
 			exit(1);
+		}
 		VIDEO_WaitVSync();
 	}
 }
@@ -595,5 +623,6 @@ void Sys_Quit(void)
 		gc_log = NULL;
 	}
 #endif
+	GC_UnmountStorage();
 	exit(0);
 }

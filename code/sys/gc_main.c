@@ -34,6 +34,7 @@ int GC_StackPeak( void ) {
 
 int main(int argc, char **argv)
 {
+	static qboolean quitQueued = qfalse;
 	char commandLine[MAX_STRING_CHARS] = { 0 };
 	int i;
 
@@ -80,6 +81,10 @@ int main(int argc, char **argv)
 #endif
 
 	for (;;) {
+		if (GC_ResetPressed() && !quitQueued) {
+			Cbuf_AddText("quit\n");
+			quitQueued = qtrue;
+		}
 		IN_Frame();
 		Com_Frame();
 	}
