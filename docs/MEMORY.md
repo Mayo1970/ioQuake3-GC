@@ -653,3 +653,28 @@ The ARAM sound region is 6275072 bytes: 3064 chunks, 12.5 million samples, about
 - Paging, q3dm1 stock, about 300 s of play: miss (ARAM read + decode) average about 335 us, max 380 us;
   worst 300-frame window 7272 misses (16 slots thrash with many voices). Prefetch hits 31 %.
 - The DSP audio dump is smooth (no byte-swap noise) and has no silent gap over 20 ms after the map starts.
+
+## 20. Zone allocator from Quake3e (QGC-49)
+
+Matt's choices (2026-11-14): the Quake3e `USE_MULTI_SEGMENT` bucket free lists (4 buckets of 64 bytes)
+on one fixed zone (no new segments: a failed search is `Com_Error`); no rover. On `HW_DOL`, `ZONE_DEBUG`
+is off in release and `DEBUG=1`, so a block header is 16 bytes (was 36 plus a 4-byte `ZONEID` trailer).
+Zone sizes are unchanged (main 2883584, small 131072).
+
+Dolphin 5.0-17995, stock 24 MB, `DEBUG=1`, `devmap <map>`. Load time is boot to `GC tex end registration`.
+
+| Run | Zone peak before | after | Small zone peak before | after | Load before | after |
+|---|---:|---:|---:|---:|---:|---:|
+| q3dm1, 4 bots | 2293072 | 2221036 | 68432 | 38488 | 183 s | 183 s |
+| q3dm17, 4 bots | 2435276 | 2363528 | 68232 | 38384 | 177 s | 177 s |
+| q3dm6, 3 bots | fails `R_ImageMalloc` 262144 | same | | | | |
+
+q3dm6 fails before and after (open on `main` since QGC-22); the zone is a fixed allocation, so a
+lower peak does not give `malloc` more room. Matt moved the q3dm6 fit to QGC-27.
+Hunk peaks are unchanged. Release build: 143 warnings (was 144).
+
+| Release | text | data | bss |
+|---|---:|---:|---:|
+| before (main 75eb4f7) | 1937440 | 493388 | 6483680 |
+| QGC-49 | 1935768 | 491480 | 6483680 |
+| delta | -1672 | -1908 | 0 |
