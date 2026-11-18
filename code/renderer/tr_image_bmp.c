@@ -189,7 +189,16 @@ void R_LoadBMP( const char *name, byte **pic, int *width, int *height )
 			return;
 		}
 		bmpRGBA = R_IMAGE_MALLOC( outWidth * outHeight * 4 );
+		if ( !bmpRGBA ) {
+			ri.FS_FreeFile( buffer.v );
+			return;
+		}
 		band = R_IMAGE_MALLOC( columns * 4 * block );
+		if ( !band ) {
+			R_IMAGE_FREE( bmpRGBA );
+			ri.FS_FreeFile( buffer.v );
+			return;
+		}
 		for ( sourceRow = 0; sourceRow < rows; sourceRow++ ) {
 			byte *src = buf_p + sourceRow * stride;
 			pixbuf = band + ( sourceRow % block ) * columns * 4;
