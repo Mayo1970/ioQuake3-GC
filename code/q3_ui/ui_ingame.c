@@ -150,6 +150,16 @@ void InGame_Event( void *ptr, int notification ) {
 }
 
 
+#ifdef HW_DOL
+static void InGame_FrameDraw( void *self ) {
+	menubitmap_s	*b = (menubitmap_s *)self;
+	vec4_t			color = { 0, 0, 0, 0.75 };
+
+	UI_FillRect( b->generic.x, b->generic.y, b->width, b->height, color );
+}
+#endif
+
+
 /*
 =================
 InGame_MenuInit
@@ -170,7 +180,11 @@ void InGame_MenuInit( void ) {
 
 	s_ingame.frame.generic.type			= MTYPE_BITMAP;
 	s_ingame.frame.generic.flags		= QMF_INACTIVE;
+#ifdef HW_DOL
+	s_ingame.frame.generic.ownerdraw		= InGame_FrameDraw;
+#else
 	s_ingame.frame.generic.name			= INGAME_FRAME;
+#endif
 	s_ingame.frame.generic.x			= 320-233;//142;
 	s_ingame.frame.generic.y			= 240-166;//118;
 	s_ingame.frame.width				= 466;//359;
@@ -327,7 +341,11 @@ InGame_Cache
 =================
 */
 void InGame_Cache( void ) {
+#ifdef HW_DOL
+	/* Frame image needs about 256 KB, too much during a game. */
+#else
 	trap_R_RegisterShaderNoMip( INGAME_FRAME );
+#endif
 }
 
 
