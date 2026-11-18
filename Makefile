@@ -74,6 +74,13 @@ JPEG_OBJ	:=	$(addprefix code/jpeg-8c/,jaricom.o jcapimin.o \
 ZLIB_CFILES	:=	$(notdir $(wildcard $(CURDIR)/code/zlib/*.c))
 ZLIB_OBJ	:=	$(addprefix code/zlib/,$(ZLIB_CFILES:.c=.o))
 
+LWIP_OBJ	:=	$(addprefix code/lwip/src/,network.o netio.o \
+			arch/gc/netif/gcif.o core/inet.o core/mem.o core/dhcp.o \
+			core/raw.o core/memp.o core/netif.o core/pbuf.o core/stats.o \
+			core/sys.o core/tcp.o core/tcp_in.o core/tcp_out.o core/udp.o \
+			core/ipv4/icmp.o core/ipv4/ip.o core/ipv4/ip_frag.o \
+			core/ipv4/ip_addr.o netif/etharp.o netif/loopif.o)
+
 MODULE_DIR	:=	modules
 MODULE_OBJS	:=	$(addprefix $(MODULE_DIR)/,$(addsuffix .o,qagame cgame ui))
 
@@ -137,7 +144,7 @@ export DEPSDIR	:=	$(CURDIR)/$(BUILD)
 export LD	:=	$(CC)
 
 export OFILES	:=	$(QCOMMON_OBJ) $(SERVER_OBJ) $(BOTLIB_OBJ) \
-			$(CLIENT_OBJ) $(SYS_OBJ) $(ZLIB_OBJ) \
+			$(CLIENT_OBJ) $(SYS_OBJ) $(ZLIB_OBJ) $(LWIP_OBJ) \
 			$(RENDERER_OBJ) $(JPEG_OBJ) $(MODULE_OBJS)
 
 export BOTLIB_OBJ
@@ -186,6 +193,10 @@ DEPENDS	:=	$(OFILES:.o=.d)
 all: $(OUTPUT).dol
 
 $(BOTLIB_OBJ): CFLAGS += -DBOTLIB
+$(LWIP_OBJ): CFLAGS := -w -I$(REPO_ROOT)/code/lwip/include \
+			-I$(REPO_ROOT)/code/lwip/include/ipv4 \
+			-I$(REPO_ROOT)/code/lwip/include/netif -I$(LIBOGC_INC)/ogc \
+			-I$(LIBOGC_INC)/ogc/machine $(CFLAGS)
 code/qcommon/ioapi.o: CFLAGS += -DUSE_INTERNAL_ZLIB
 $(ZLIB_OBJ): CFLAGS += -DUSE_INTERNAL_ZLIB -I$(REPO_ROOT)/code/zlib
 $(JPEG_OBJ): CFLAGS += -DUSE_INTERNAL_JPEG -I$(REPO_ROOT)/code/jpeg-8c
