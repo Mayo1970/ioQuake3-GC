@@ -69,7 +69,16 @@ void R_LoadPCX( const char *filename, byte **pic, int *width, int *height ) {
 	shift = R_GCImageShift( w, h ); block = 1 << shift;
 	outWidth = w >> shift; outHeight = h >> shift;
 	out = R_IMAGE_MALLOC( outWidth * outHeight * 4 );
+	if ( !out ) {
+		ri.FS_FreeFile( file.v );
+		return;
+	}
 	band = R_IMAGE_MALLOC( w * 4 * block );
+	if ( !band ) {
+		R_IMAGE_FREE( out );
+		ri.FS_FreeFile( file.v );
+		return;
+	}
 	for ( row = 0; row < h; row++ ) {
 		byte *dst = band + ( row % block ) * w * 4;
 		for ( x = 0; x < w; x++ ) {

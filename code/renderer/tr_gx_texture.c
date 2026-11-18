@@ -465,9 +465,10 @@ void GXBE_DeleteTexnum(int texnum)
 
     if (s_gx_texbufs[texnum]) {
 #if defined(HW_DOL) && defined(GC_DEBUG)
-        GC_HeapUntag(s_gx_texbufs[texnum]);
+        if (!GC_TexPoolOwns(s_gx_texbufs[texnum]))
+            GC_HeapUntag(s_gx_texbufs[texnum]);
 #endif
-        free(s_gx_texbufs[texnum]);
+        GC_TexPoolFree(s_gx_texbufs[texnum]);
         s_gx_texbufs[texnum] = NULL;
 #ifdef GC_DEBUG
         gx_texstats_remove(texnum);
@@ -521,9 +522,10 @@ void GXBE_Upload32(unsigned *data, int width, int height,
     /* Free any previous buffer for this slot (e.g. re-upload) */
     if (s_gx_texbufs[texnum]) {
 #if defined(HW_DOL) && defined(GC_DEBUG)
-        GC_HeapUntag(s_gx_texbufs[texnum]);
+        if (!GC_TexPoolOwns(s_gx_texbufs[texnum]))
+            GC_HeapUntag(s_gx_texbufs[texnum]);
 #endif
-        free(s_gx_texbufs[texnum]);
+        GC_TexPoolFree(s_gx_texbufs[texnum]);
         s_gx_texbufs[texnum] = NULL;
 #ifdef GC_DEBUG
         gx_texstats_remove(texnum);
@@ -551,7 +553,7 @@ void GXBE_Upload32(unsigned *data, int width, int height,
     }
 
     /* GX texture data must be 32-byte aligned */
-    buf = memalign(32, size);
+    buf = GC_TexPoolAlloc(size);
     if (!buf) {
         int defSlot = tr.defaultImage ? tr.defaultImage->texnum : -1;
 
@@ -580,7 +582,8 @@ void GXBE_Upload32(unsigned *data, int width, int height,
     }
 
 #if defined(HW_DOL) && defined(GC_DEBUG)
-    GC_HeapTag(buf, size, 'T');
+    if (!GC_TexPoolOwns(buf))
+        GC_HeapTag(buf, size, 'T');
 #endif
 #ifdef GC_DEBUG
     GXBE_MemSample("upload", NULL);
@@ -671,9 +674,13 @@ void GXBE_TexSubImage2D(int texnum, int fullW, int fullH, const byte *data)
     size = gx_level_size(fullW, fullH, s_gx_texfmt[texnum]);
     buf  = s_gx_texbufs[texnum];
     if (!buf) {
-        buf = memalign(32, size);
+        buf = GC_TexPoolAlloc(size);
         if (!buf) return;
         s_gx_texbufs[texnum] = buf;
+#if defined(HW_DOL) && defined(GC_DEBUG)
+        if (!GC_TexPoolOwns(buf))
+            GC_HeapTag(buf, size, 'T');
+#endif
 #ifdef GC_DEBUG
         gx_texstats_add(texnum, size, size);
 #endif

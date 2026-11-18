@@ -1665,6 +1665,14 @@ void R_LoadTGA( const char *name, byte **pic, int *width, int *height );
 #ifdef HW_DOL
 int R_GCImageShift( int width, int height );
 void R_GCReduceRows( const byte *rows, byte *out, int width, int shift );
+void GC_TexPoolInit( void );
+void *GC_TexPoolAlloc( size_t size );
+void GC_TexPoolFree( void *ptr );
+qboolean GC_TexPoolOwns( const void *ptr );
+#ifdef GC_DEBUG
+void GC_TexPoolReport( void );
+void GC_TexPoolShutdownCheck( void );
+#endif
 void *R_ImageMalloc( int size );
 void  R_ImageFree( void *ptr );
 #define R_IMAGE_MALLOC( size )	R_ImageMalloc( size )

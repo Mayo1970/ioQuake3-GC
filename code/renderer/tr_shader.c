@@ -2991,7 +2991,7 @@ static void ScanAndLoadShaderFiles( void )
 #ifdef HW_DOL
 	/* Matt, QGC-47: shader text in ARAM; the hunk keeps (offset, length) per shader and one DMA buffer. */
 	textSize = ( sum + numShaderFiles*2 + 31 ) & ~31;
-	text = memalign( 32, textSize );
+	text = GC_TexPoolAlloc( textSize );
 	if ( !text ) {
 		ri.Error( ERR_FATAL, "ScanAndLoadShaderFiles: no memory for %i bytes", textSize );
 	}
@@ -3015,7 +3015,7 @@ static void ScanAndLoadShaderFiles( void )
 
 	textLen = strlen( text ) + 1;
 	if ( textLen > GC_ARAM_SHADER_SIZE ) {
-		free( text );
+		GC_TexPoolFree( text );
 		ri.Error( ERR_FATAL, "ScanAndLoadShaderFiles: %i bytes of shader text do not fit in ARAM", textLen );
 	}
 
@@ -3076,11 +3076,11 @@ static void ScanAndLoadShaderFiles( void )
 	s_shaderStage = (char *)( ( (intptr_t)s_shaderStage + 31 ) & ~31 );
 
 	if ( textSize > GC_ARAM_SHADER_SIZE ) {
-		free( text );
+		GC_TexPoolFree( text );
 		ri.Error( ERR_FATAL, "ScanAndLoadShaderFiles: %i bytes of shader text do not fit in ARAM", textLen );
 	}
 	GC_ARAM_Write( GC_ARAM_ShaderBase(), text, textSize );
-	free( text );
+	GC_TexPoolFree( text );
 
 #ifdef GC_DEBUG
 	ri.Printf( PRINT_ALL, "GC shader text: %i bytes in ARAM, %i shaders, stage %i\n", textLen, size - MAX_SHADERTEXT_HASH, stageSize );

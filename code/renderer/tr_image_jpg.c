@@ -193,6 +193,13 @@ void R_LoadJPG(const char *filename, unsigned char **pic, int *width, int *heigh
   row_stride = cinfo.output_width * cinfo.output_components;
 
   out = R_IMAGE_MALLOC(memcount);
+#ifdef HW_DOL
+  if (!out) {
+    jpeg_destroy_decompress(&cinfo);
+    ri.FS_FreeFile(fbuffer.v);
+    return;
+  }
+#endif
 
   *width = cinfo.output_width;
   *height = cinfo.output_height;

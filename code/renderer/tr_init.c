@@ -1039,6 +1039,7 @@ static void GC_HeapMap_f( void ) {
 }
 
 static void GC_TexMem_f( void ) {
+	GC_TexPoolReport();
 	GXBE_TexHeapReport( "now" );
 	R_MD3AramReport( "now" );
 	ri.Printf( PRINT_ALL, "GC backend peak: drawsurfs %i of %i, commands %i of %i\n", r_gcDrawSurfPeak, MAX_DRAWSURFS, r_gcCmdPeak, MAX_RENDER_COMMANDS );
@@ -1226,6 +1227,9 @@ void R_Init( void ) {
 #endif
 
 	ri.Printf( PRINT_ALL, "----- R_Init -----\n" );
+#ifdef HW_DOL
+	GC_TexPoolInit();
+#endif
 
 	// clear all our internal state
 	Com_Memset( &tr, 0, sizeof( tr ) );
@@ -1352,6 +1356,9 @@ void RE_Shutdown( qboolean destroyWindow ) {
 		R_ShutdownCommandBuffers();
 		R_DeleteTextures();
 	}
+#if defined(HW_DOL) && defined(GC_DEBUG)
+	GC_TexPoolShutdownCheck();
+#endif
 
 	R_DoneFreeType();
 

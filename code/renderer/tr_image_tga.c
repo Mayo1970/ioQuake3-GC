@@ -142,7 +142,16 @@ void R_LoadTGA ( const char *name, byte **pic, int *width, int *height)
 		}
 		buf_p += targa_header.id_length;
 		targa_rgba = R_IMAGE_MALLOC( outWidth * outHeight * 4 );
+		if ( !targa_rgba ) {
+			ri.FS_FreeFile( buffer.v );
+			return;
+		}
 		band = R_IMAGE_MALLOC( columns * 4 * block );
+		if ( !band ) {
+			R_IMAGE_FREE( targa_rgba );
+			ri.FS_FreeFile( buffer.v );
+			return;
+		}
 		for ( sourceRow = 0; sourceRow < (int)rows; sourceRow++ ) {
 			pixbuf = band + ( sourceRow % block ) * columns * 4;
 			for ( x = 0; x < (int)columns; x++ ) {

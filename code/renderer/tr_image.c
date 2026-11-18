@@ -24,38 +24,179 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #ifdef HW_DOL
 #include <stdlib.h>
-
-#if defined(HW_DOL) && defined(GC_DEBUG)
 #include <malloc.h>
-#include <ogc/system.h>
 
-/* Name of the image R_LoadImage is decoding, for the debug memory samples. */
-static const char *gc_imageName;
+#ifdef GC_DEBUG
+#include <ogc/system.h>
 #endif
 
-/* Decoded pixels live only until the upload; outside the 3 MB zone (QGC-17). */
+#define GC_TEXPOOL_BYTES ( 1024U * 1024U )
+#define GC_TEXPOOL_MAX_BLOCKS 4096
+
+typedef struct {
+	u32 offset;
+	u32 size;
+	qboolean freeBlock;
+} gcTexPoolBlock_t;
+
+static byte *gc_texPool;
+static gcTexPoolBlock_t gc_texPoolBlocks[GC_TEXPOOL_MAX_BLOCKS];
+static int gc_texPoolBlockCount;
+static qboolean gc_texPoolInitialized;
+static u32 gc_texPoolUsed;
+static u32 gc_texPoolPeak;
+static u32 gc_texPoolFallbacks;
+static const char *gc_imageName;
+static qboolean gc_imageAllocFailed;
+
+void GC_TexPoolInit( void ) {
+	if ( gc_texPoolInitialized )
+		return;
+
+	gc_texPoolInitialized = qtrue;
+	gc_texPool = memalign( 32, GC_TEXPOOL_BYTES );
+	if ( !gc_texPool )
+		return;
+
+	gc_texPoolBlocks[0].offset = 0;
+	gc_texPoolBlocks[0].size = GC_TEXPOOL_BYTES;
+	gc_texPoolBlocks[0].freeBlock = qtrue;
+	gc_texPoolBlockCount = 1;
+}
+
+qboolean GC_TexPoolOwns( const void *ptr ) {
+	uintptr_t address, start;
+
+	if ( !gc_texPool || !ptr )
+		return qfalse;
+	address = (uintptr_t)ptr;
+	start = (uintptr_t)gc_texPool;
+	return address >= start && address < start + GC_TEXPOOL_BYTES;
+}
+
+void *GC_TexPoolAlloc( size_t size ) {
+	u32 alignedSize;
+	int i;
+	void *ptr;
+
+	GC_TexPoolInit();
+	if ( !size || size > (size_t)( 0xffffffffU - 31U ) )
+		return NULL;
+	alignedSize = ( (u32)size + 31U ) & ~31U;
+
+	for ( i = 0; gc_texPool && i < gc_texPoolBlockCount; i++ ) {
+		gcTexPoolBlock_t *block = &gc_texPoolBlocks[i];
+		if ( !block->freeBlock || block->size < alignedSize )
+			continue;
+		if ( block->size > alignedSize ) {
+			if ( gc_texPoolBlockCount == GC_TEXPOOL_MAX_BLOCKS )
+				break;
+			memmove( &gc_texPoolBlocks[i + 1], &gc_texPoolBlocks[i],
+				(gc_texPoolBlockCount - i) * sizeof( gc_texPoolBlocks[0] ) );
+			gc_texPoolBlocks[i + 1].offset += alignedSize;
+			gc_texPoolBlocks[i + 1].size -= alignedSize;
+			gc_texPoolBlockCount++;
+			block = &gc_texPoolBlocks[i];
+			block->size = alignedSize;
+		}
+		block->freeBlock = qfalse;
+		gc_texPoolUsed += block->size;
+		if ( gc_texPoolUsed > gc_texPoolPeak )
+			gc_texPoolPeak = gc_texPoolUsed;
+		return gc_texPool + block->offset;
+	}
+
+	gc_texPoolFallbacks++;
+	ptr = memalign( 32, alignedSize );
+	return ptr;
+}
+
+void GC_TexPoolFree( void *ptr ) {
+	int i;
+	u32 offset;
+
+	if ( !ptr )
+		return;
+	if ( !GC_TexPoolOwns( ptr ) ) {
+		free( ptr );
+		return;
+	}
+
+	offset = (u32)( (uintptr_t)ptr - (uintptr_t)gc_texPool );
+	for ( i = 0; i < gc_texPoolBlockCount; i++ ) {
+		gcTexPoolBlock_t *block = &gc_texPoolBlocks[i];
+		if ( block->offset != offset || block->freeBlock )
+			continue;
+
+		block->freeBlock = qtrue;
+		gc_texPoolUsed -= block->size;
+		if ( i > 0 && gc_texPoolBlocks[i - 1].freeBlock ) {
+			gc_texPoolBlocks[i - 1].size += block->size;
+			memmove( block, block + 1,
+				(gc_texPoolBlockCount - i - 1) * sizeof( gc_texPoolBlocks[0] ) );
+			gc_texPoolBlockCount--;
+			i--;
+			block = &gc_texPoolBlocks[i];
+		}
+		if ( i + 1 < gc_texPoolBlockCount && gc_texPoolBlocks[i + 1].freeBlock ) {
+			block->size += gc_texPoolBlocks[i + 1].size;
+			memmove( &gc_texPoolBlocks[i + 1], &gc_texPoolBlocks[i + 2],
+				(gc_texPoolBlockCount - i - 2) * sizeof( gc_texPoolBlocks[0] ) );
+			gc_texPoolBlockCount--;
+		}
+		return;
+	}
+}
+
+#ifdef GC_DEBUG
+void GC_TexPoolReport( void ) {
+	u32 largestFree = 0;
+	int i;
+	for ( i = 0; i < gc_texPoolBlockCount; i++ ) {
+		if ( gc_texPoolBlocks[i].freeBlock && gc_texPoolBlocks[i].size > largestFree )
+			largestFree = gc_texPoolBlocks[i].size;
+	}
+	ri.Printf( PRINT_ALL, "GC texpool: used %u peak %u of %u, largest free %u, fallbacks %u\n",
+		gc_texPoolUsed, gc_texPoolPeak, GC_TEXPOOL_BYTES, largestFree, gc_texPoolFallbacks );
+}
+
+void GC_TexPoolShutdownCheck( void ) {
+	int i, allocated = 0;
+	for ( i = 0; i < gc_texPoolBlockCount; i++ )
+		if ( !gc_texPoolBlocks[i].freeBlock )
+			allocated++;
+	if ( allocated )
+		ri.Printf( PRINT_ALL, "GC texpool: %i blocks left after shutdown\n", allocated );
+}
+#endif
+
 void *R_ImageMalloc( int size ) {
-	void *ptr = malloc( size );
+	void *ptr = GC_TexPoolAlloc( size );
 
 	if ( !ptr ) {
-#if defined(HW_DOL) && defined(GC_DEBUG)
+		gc_imageAllocFailed = qtrue;
+		ri.Printf( PRINT_WARNING, "^3WARNING: no memory for image %s (%i bytes), using the default image\n",
+			gc_imageName ? gc_imageName : "?", size );
+#ifdef GC_DEBUG
 		ri.Printf( PRINT_ALL, "GC oom: R_ImageMalloc %i bytes for %s, malloc free %u, arena1 %u, largest %u\n", size, gc_imageName ? gc_imageName : "?", mallinfo().fordblks, SYS_GetArena1Size(), GXBE_LargestFree() );
 		GC_HeapMap( "oom" );
 #endif
-		ri.Error( ERR_DROP, "R_ImageMalloc: failed on %i bytes", size );
+		return NULL;
 	}
-#if defined(HW_DOL) && defined(GC_DEBUG)
-	GC_HeapTag( ptr, size, 'I' );
+#ifdef GC_DEBUG
+	if ( !GC_TexPoolOwns( ptr ) )
+		GC_HeapTag( ptr, size, 'I' );
 	GXBE_MemSample( "image", gc_imageName );
 #endif
 	return ptr;
 }
 
 void R_ImageFree( void *ptr ) {
-#if defined(HW_DOL) && defined(GC_DEBUG)
-	GC_HeapUntag( ptr );
+#ifdef GC_DEBUG
+	if ( ptr && !GC_TexPoolOwns( ptr ) )
+		GC_HeapUntag( ptr );
 #endif
-	free( ptr );
+	GC_TexPoolFree( ptr );
 }
 
 int r_gcJpgMaxDim;
@@ -1000,6 +1141,9 @@ void R_LoadImage( const char *name, byte **pic, int *width, int *height )
 	*pic = NULL;
 	*width = 0;
 	*height = 0;
+#ifdef HW_DOL
+	gc_imageAllocFailed = qfalse;
+#endif
 
 	Q_strncpyz( localName, name, MAX_QPATH );
 
@@ -1014,6 +1158,10 @@ void R_LoadImage( const char *name, byte **pic, int *width, int *height )
 			{
 				// Load
 				imageLoaders[ i ].ImageLoader( localName, pic, width, height );
+#ifdef HW_DOL
+				if ( gc_imageAllocFailed )
+					return;
+#endif
 				break;
 			}
 		}
@@ -1048,6 +1196,10 @@ void R_LoadImage( const char *name, byte **pic, int *width, int *height )
 
 		// Load
 		imageLoaders[ i ].ImageLoader( altName, pic, width, height );
+#ifdef HW_DOL
+		if ( gc_imageAllocFailed )
+			return;
+#endif
 
 		if( *pic )
 		{
@@ -1112,13 +1264,9 @@ image_t	*R_FindImageFile( const char *name, qboolean mipmap, qboolean allowPicmi
 	r_gcJpgMaxDim = glConfig.maxTextureSize;
 	r_gcJpgPicmipShift = allowPicmip ? r_picmip->integer : 0;
 	r_gcJpgShift = 0;
-#if defined(HW_DOL) && defined(GC_DEBUG)
 	gc_imageName = name;
-#endif
 	R_LoadImage( name, &pic, &width, &height );
-#if defined(HW_DOL) && defined(GC_DEBUG)
 	gc_imageName = NULL;
-#endif
 	r_gcJpgMaxDim = 0;
 	r_gcJpgPicmipShift = 0;
 	if ( pic == NULL ) {
