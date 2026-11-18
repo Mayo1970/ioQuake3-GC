@@ -168,8 +168,11 @@ qboolean GC_InitStorage(int argc, char **argv)
 
 		if (!dev->mounted) {
 			if (!fatMount(dev->name, dev->iface, 0,
-			              GC_FAT_CACHE_PAGES, GC_FAT_SECTORS_PER_PAGE))
+			              GC_FAT_CACHE_PAGES, GC_FAT_SECTORS_PER_PAGE)) {
+				/* Restart the EXI driver; the first mount after boot fails. */
+				dev->iface->shutdown();
 				continue;
+			}
 			dev->mounted = qtrue;
 		}
 
@@ -220,19 +223,42 @@ qboolean GC_InitStorage(int argc, char **argv)
 	return qfalse;
 }
 
+/* 30 NTSC frames is about 500 ms. */
+#define GC_RETRY_FRAMES 30
+
+static void GC_RetryDelay(int frames)
+{
+	while (frames-- > 0) {
+		PAD_ScanPads();
+		if ((PAD_ButtonsDown(0) & PAD_BUTTON_START) || GC_ResetPressed())
+			Sys_Quit();
+		VIDEO_WaitVSync();
+	}
+}
+
 void GC_WaitForStorage(int argc, char **argv)
 {
+	int i;
+	u32 pressed;
+	int frames = 0;
+
 	GC_InitConsole();
 
 	if (GC_InitStorage(argc, argv))
 		return;
 
+	printf("Waiting for the SD card...\n");
+
+	for (i = 0; i < 10; i++) {
+		GC_RetryDelay(GC_RETRY_FRAMES);
+		if (GC_InitStorage(argc, argv))
+			return;
+	}
+
 	printf("No quake3 folder found on sd2sp2:, carda: or cardb:.\n");
 	printf("Insert the card, then press A to retry. Press START to exit.\n");
 
 	for (;;) {
-		u32 pressed;
-
 		PAD_ScanPads();
 		pressed = PAD_ButtonsDown(0);
 
@@ -240,13 +266,18 @@ void GC_WaitForStorage(int argc, char **argv)
 			printf("Retrying...\n");
 			if (GC_InitStorage(argc, argv))
 				return;
-			printf("No quake3 folder found on sd2sp2:, carda: or cardb:.\n");
-			printf("Insert the card, then press A to retry. Press START to exit.\n");
+			frames = 0;
 		}
 		if ((pressed & PAD_BUTTON_START) || GC_ResetPressed())
 			Sys_Quit();
 
 		VIDEO_WaitVSync();
+
+		if (++frames >= 2 * GC_RETRY_FRAMES) {
+			frames = 0;
+			if (GC_InitStorage(argc, argv))
+				return;
+		}
 	}
 }
 
