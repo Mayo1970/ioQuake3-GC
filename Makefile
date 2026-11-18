@@ -27,7 +27,7 @@ GC_MEM1_MB ?=
 
 QCOMMON_OBJ	:=	$(addprefix code/qcommon/,cmd.o cm_load.o cm_patch.o \
 			cm_polylib.o cm_test.o cm_trace.o common.o cvar.o files.o \
-			huffman.o ioapi.o md4.o md5.o msg.o net_chan.o q_math.o \
+			huffman.o ioapi.o md4.o md5.o msg.o net_chan.o net_ip.o q_math.o \
 			q_shared.o unzip.o vm.o puff.o)
 
 SERVER_OBJ	:=	$(addprefix code/server/,sv_bot.o sv_ccmds.o sv_client.o \
@@ -49,7 +49,7 @@ CLIENT_OBJ	:=	$(addprefix code/client/,cl_avi.o cl_cgame.o cl_cin.o \
 			snd_codec_wav.o)
 
 SYS_OBJ		:=	$(addprefix code/sys/,gc_main.o gc_input.o sys_gc.o gc_dvd.o gc_aram.o \
-			gc_glimp.o gc_snddma.o gc_sndaram.o gc_net_null.o gc_modules.o gc_heapdbg.o)
+			gc_glimp.o gc_snddma.o gc_sndaram.o gc_dns.o gc_modules.o gc_heapdbg.o)
 
 RENDERER_OBJ	:=	$(addprefix code/renderer/,tr_animation.o \
 			tr_backend.o tr_bsp.o tr_cmds.o tr_curve.o tr_flares.o \
