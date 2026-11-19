@@ -63,29 +63,48 @@ static qboolean	winsockInitialized = qfalse;
 #		define _BSD_SOCKLEN_T_
 #	endif
 
-#	include <sys/socket.h>
-#	include <errno.h>
-#	include <netdb.h>
-#	include <netinet/in.h>
-#	include <arpa/inet.h>
-#	include <net/if.h>
-#	include <sys/ioctl.h>
-#	include <sys/types.h>
-#	include <sys/time.h>
-#	include <unistd.h>
-#	if !defined(__sun) && !defined(__sgi)
-#		include <ifaddrs.h>
-#	endif
+#	ifdef HW_DOL
+#		include "../sys/gc_net.h"
+#		include "../sys/gc_dns.h"
+#		include "../lwip/include/gc_lwip_mem.h"
+#		ifdef GC_DEBUG
+#			undef COLOR_BLACK
+#			undef COLOR_RED
+#			undef COLOR_GREEN
+#			undef COLOR_YELLOW
+#			undef COLOR_BLUE
+#			undef COLOR_CYAN
+#			undef COLOR_MAGENTA
+#			undef COLOR_WHITE
+#			include <ogc/lwp_watchdog.h>
+#		endif
+#	else
+#		include <sys/socket.h>
+#		include <errno.h>
+#		include <netdb.h>
+#		include <netinet/in.h>
+#		include <arpa/inet.h>
+#		include <net/if.h>
+#		include <sys/ioctl.h>
+#		include <sys/types.h>
+#		include <sys/time.h>
+#		include <unistd.h>
+#		if !defined(__sun) && !defined(__sgi)
+#			include <ifaddrs.h>
+#		endif
 
-#	ifdef __sun
-#		include <sys/filio.h>
+#		ifdef __sun
+#			include <sys/filio.h>
+#		endif
 #	endif
 
 typedef int SOCKET;
 #	define INVALID_SOCKET		-1
 #	define SOCKET_ERROR			-1
-#	define closesocket			close
-#	define ioctlsocket			ioctl
+#	ifndef HW_DOL
+#		define closesocket			close
+#		define ioctlsocket			ioctl
+#	endif
 typedef int	ioctlarg_t;
 #	define socketError			errno
 
@@ -114,14 +133,18 @@ static cvar_t	*net_dropsim;
 static struct sockaddr	socksRelayAddr;
 
 static SOCKET	ip_socket = INVALID_SOCKET;
+#ifndef HW_DOL
 static SOCKET	ip6_socket = INVALID_SOCKET;
+#endif
 static SOCKET	socks_socket = INVALID_SOCKET;
+#ifndef HW_DOL
 static SOCKET	multicast6_socket = INVALID_SOCKET;
 
 // Keep track of currently joined multicast group.
 static struct ipv6_mreq curgroup;
 // And the currently bound address.
 static struct sockaddr_in6 boundto;
+#endif
 
 #ifndef IF_NAMESIZE
   #define IF_NAMESIZE 16
@@ -144,6 +167,68 @@ typedef struct
 
 static nip_localaddr_t localIP[MAX_IPS];
 static int numIP;
+
+#ifdef HW_DOL
+#define GC_NET_DHCP_RETRIES 10
+
+static qboolean gc_net_started = qfalse;
+static qboolean gc_net_ready = qfalse;
+static struct in_addr gc_local_ip;
+static struct in_addr gc_local_netmask;
+static struct in_addr gc_gateway;
+
+static qboolean GC_NetStart(void)
+{
+	char ip[16] = {0};
+	char netmask[16] = {0};
+	char gateway[16] = {0};
+	s32 ret;
+#ifdef GC_DEBUG
+	u64 start, end;
+#endif
+
+	if (gc_net_started)
+		return gc_net_ready;
+
+	gc_net_started = qtrue;
+
+	if (GC_LwipAlloc() != 0) {
+		Com_Printf("NET: no memory for the network stack\n");
+		return qfalse;
+	}
+#ifdef GC_DEBUG
+	Com_Printf("NET: lwIP buffers %u bytes\n", (unsigned)GC_LWIP_TOTAL_SIZE);
+	start = gettime();
+#endif
+	ret = if_config(ip, netmask, gateway, true, GC_NET_DHCP_RETRIES);
+#ifdef GC_DEBUG
+	end = gettime();
+	Com_Printf("NET: if_config took %u ms\n", (unsigned)diff_msec(start, end));
+#endif
+
+	if (ret < 0) {
+		if (ret == -1) {
+			Com_Printf("NET: no Broadband Adapter\n");
+			/* netif_add failed before net_init: no thread, timer or RX path runs. */
+			GC_LwipFree();
+		}
+		else if (ret == -2)
+			Com_Printf("NET: DHCP failed\n");
+		else
+			Com_Printf("NET: start failed (%d)\n", (int)ret);
+		gc_net_ready = qfalse;
+		return qfalse;
+	}
+
+	inet_aton(ip, &gc_local_ip);
+	inet_aton(netmask, &gc_local_netmask);
+	inet_aton(gateway, &gc_gateway);
+	GC_DnsSetServer(&gc_gateway);
+	gc_net_ready = qtrue;
+	Com_Printf("NET: %s netmask %s gateway %s\n", ip, netmask, gateway);
+	return qtrue;
+}
+#endif
 
 
 //=============================================================================
@@ -220,6 +305,7 @@ static void NetadrToSockadr( netadr_t *a, struct sockaddr *s ) {
 		((struct sockaddr_in *)s)->sin_addr.s_addr = *(int *)&a->ip;
 		((struct sockaddr_in *)s)->sin_port = a->port;
 	}
+#ifndef HW_DOL
 	else if( a->type == NA_IP6 ) {
 		((struct sockaddr_in6 *)s)->sin6_family = AF_INET6;
 		((struct sockaddr_in6 *)s)->sin6_addr = * ((struct in6_addr *) &a->ip6);
@@ -232,6 +318,7 @@ static void NetadrToSockadr( netadr_t *a, struct sockaddr *s ) {
 		((struct sockaddr_in6 *)s)->sin6_addr = curgroup.ipv6mr_multiaddr;
 		((struct sockaddr_in6 *)s)->sin6_port = a->port;
 	}
+#endif
 }
 
 
@@ -241,6 +328,7 @@ static void SockadrToNetadr( struct sockaddr *s, netadr_t *a ) {
 		*(int *)&a->ip = ((struct sockaddr_in *)s)->sin_addr.s_addr;
 		a->port = ((struct sockaddr_in *)s)->sin_port;
 	}
+#ifndef HW_DOL
 	else if(s->sa_family == AF_INET6)
 	{
 		a->type = NA_IP6;
@@ -248,9 +336,11 @@ static void SockadrToNetadr( struct sockaddr *s, netadr_t *a ) {
 		a->port = ((struct sockaddr_in6 *)s)->sin6_port;
 		a->scope_id = ((struct sockaddr_in6 *)s)->sin6_scope_id;
 	}
+#endif
 }
 
 
+#ifndef HW_DOL
 static struct addrinfo *SearchAddrInfo(struct addrinfo *hints, sa_family_t family)
 {
 	while(hints)
@@ -263,12 +353,39 @@ static struct addrinfo *SearchAddrInfo(struct addrinfo *hints, sa_family_t famil
 	
 	return NULL;
 }
+#endif
 
 /*
 =============
 Sys_StringToSockaddr
 =============
 */
+#ifdef HW_DOL
+static qboolean Sys_StringToSockaddr(const char *s, struct sockaddr *sadr, int sadr_len, sa_family_t family)
+{
+	struct sockaddr_in *addr;
+
+	if (family != AF_INET && family != AF_UNSPEC)
+		return qfalse;
+	if (sadr_len < (int)sizeof(struct sockaddr_in))
+		return qfalse;
+
+	memset(sadr, 0, sadr_len);
+	addr = (struct sockaddr_in *)sadr;
+	addr->sin_len = (u8)sizeof(struct sockaddr_in);
+	addr->sin_family = AF_INET;
+	addr->sin_port = 0;
+
+	if (inet_aton(s, &addr->sin_addr))
+		return qtrue;
+	if (!gc_net_ready)
+		return qfalse;
+	if (!GC_DnsResolve(s, &addr->sin_addr))
+		return qfalse;
+
+	return qtrue;
+}
+#else
 static qboolean Sys_StringToSockaddr(const char *s, struct sockaddr *sadr, int sadr_len, sa_family_t family)
 {
 	struct addrinfo hints;
@@ -350,6 +467,18 @@ static void Sys_SockaddrToString(char *dest, int destlen, struct sockaddr *input
 	if(getnameinfo(input, inputlen, dest, destlen, NULL, 0, NI_NUMERICHOST) && destlen > 0)
 		*dest = '\0';
 }
+#endif
+#ifdef HW_DOL
+static void Sys_SockaddrToString(char *dest, int destlen, struct sockaddr *input)
+{
+	if (destlen <= 0)
+		return;
+
+	dest[0] = '\0';
+	if (input->sa_family == AF_INET)
+		Q_strncpyz(dest, inet_ntoa(((struct sockaddr_in *)input)->sin_addr), destlen);
+}
+#endif
 
 /*
 =============
@@ -571,6 +700,7 @@ qboolean NET_GetPacket(netadr_t *net_from, msg_t *net_message, fd_set *fdr)
 		}
 	}
 	
+#ifndef HW_DOL
 	if(ip6_socket != INVALID_SOCKET && FD_ISSET(ip6_socket, fdr))
 	{
 		fromlen = sizeof(from);
@@ -598,7 +728,9 @@ qboolean NET_GetPacket(netadr_t *net_from, msg_t *net_message, fd_set *fdr)
 			return qtrue;
 		}
 	}
+#endif
 
+#ifndef HW_DOL
 	if(multicast6_socket != INVALID_SOCKET && multicast6_socket != ip6_socket && FD_ISSET(multicast6_socket, fdr))
 	{
 		fromlen = sizeof(from);
@@ -626,6 +758,7 @@ qboolean NET_GetPacket(netadr_t *net_from, msg_t *net_message, fd_set *fdr)
 			return qtrue;
 		}
 	}
+#endif
 	
 	
 	return qfalse;
@@ -644,20 +777,31 @@ void Sys_SendPacket( int length, const void *data, netadr_t to ) {
 	int				ret = SOCKET_ERROR;
 	struct sockaddr_storage	addr;
 
+#ifdef HW_DOL
+	if( to.type == NA_IP6 || to.type == NA_MULTICAST6 )
+		return;
+	if( to.type != NA_BROADCAST && to.type != NA_IP )
+#else
 	if( to.type != NA_BROADCAST && to.type != NA_IP && to.type != NA_IP6 && to.type != NA_MULTICAST6)
+#endif
 	{
 		Com_Error( ERR_FATAL, "Sys_SendPacket: bad address type" );
 		return;
 	}
 
 	if( (ip_socket == INVALID_SOCKET && to.type == NA_IP) ||
-		(ip_socket == INVALID_SOCKET && to.type == NA_BROADCAST) ||
-		(ip6_socket == INVALID_SOCKET && to.type == NA_IP6) ||
-		(ip6_socket == INVALID_SOCKET && to.type == NA_MULTICAST6) )
+		(ip_socket == INVALID_SOCKET && to.type == NA_BROADCAST)
+#ifndef HW_DOL
+		|| (ip6_socket == INVALID_SOCKET && to.type == NA_IP6) ||
+		(ip6_socket == INVALID_SOCKET && to.type == NA_MULTICAST6)
+#endif
+		)
 		return;
 
+#ifndef HW_DOL
 	if(to.type == NA_MULTICAST6 && (net_enabled->integer & NET_DISABLEMCAST))
 		return;
+#endif
 
 	memset(&addr, 0, sizeof(addr));
 	NetadrToSockadr( &to, (struct sockaddr *) &addr );
@@ -675,8 +819,10 @@ void Sys_SendPacket( int length, const void *data, netadr_t to ) {
 	else {
 		if(addr.ss_family == AF_INET)
 			ret = sendto( ip_socket, data, length, 0, (struct sockaddr *) &addr, sizeof(struct sockaddr_in) );
+#ifndef HW_DOL
 		else if(addr.ss_family == AF_INET6)
 			ret = sendto( ip6_socket, data, length, 0, (struct sockaddr *) &addr, sizeof(struct sockaddr_in6) );
+#endif
 	}
 	if( ret == SOCKET_ERROR ) {
 		int err = socketError;
@@ -873,6 +1019,7 @@ int NET_IPSocket( char *net_interface, int port, int *err ) {
 	return newsocket;
 }
 
+#ifndef HW_DOL
 /*
 ====================
 NET_IP6Socket
@@ -1058,7 +1205,17 @@ void NET_LeaveMulticast6()
 		multicast6_socket = INVALID_SOCKET;
 	}
 }
+#else
+void NET_JoinMulticast6(void)
+{
+}
 
+void NET_LeaveMulticast6(void)
+{
+}
+#endif
+
+#ifndef HW_DOL
 /*
 ====================
 NET_OpenSocks
@@ -1224,6 +1381,7 @@ void NET_OpenSocks( int port ) {
 
 	usingSocks = qtrue;
 }
+#endif
 
 
 /*
@@ -1268,7 +1426,30 @@ static void NET_AddLocalAddress(char *ifname, struct sockaddr *addr, struct sock
 	}
 }
 
-#if defined(__linux__) || defined(MACOSX) || defined(__BSD__)
+#ifdef HW_DOL
+static void NET_GetLocalAddress(void)
+{
+	char ifname[] = "bba";
+	struct sockaddr_in addr;
+	struct sockaddr_in netmask;
+
+	numIP = 0;
+	if (!gc_net_ready)
+		return;
+
+	memset(&addr, 0, sizeof(addr));
+	addr.sin_len = (u8)sizeof(addr);
+	addr.sin_family = AF_INET;
+	addr.sin_addr = gc_local_ip;
+
+	memset(&netmask, 0, sizeof(netmask));
+	netmask.sin_len = (u8)sizeof(netmask);
+	netmask.sin_family = AF_INET;
+	netmask.sin_addr = gc_local_netmask;
+
+	NET_AddLocalAddress(ifname, (struct sockaddr *)&addr, (struct sockaddr *)&netmask);
+}
+#elif defined(__linux__) || defined(MACOSX) || defined(__BSD__)
 static void NET_GetLocalAddress(void)
 {
 	struct ifaddrs *ifap, *search;
@@ -1351,10 +1532,14 @@ void NET_OpenIP( void ) {
 	int		i;
 	int		err;
 	int		port;
+#ifndef HW_DOL
 	int		port6;
+#endif
 
 	port = net_port->integer;
+#ifndef HW_DOL
 	port6 = net_port6->integer;
+#endif
 
 	NET_GetLocalAddress();
 
@@ -1362,6 +1547,7 @@ void NET_OpenIP( void ) {
 	// dedicated servers can be started without requiring
 	// a different net_port for each one
 
+#ifndef HW_DOL
 	if(net_enabled->integer & NET_ENABLEV6)
 	{
 		for( i = 0 ; i < 10 ; i++ )
@@ -1381,6 +1567,7 @@ void NET_OpenIP( void ) {
 		if(ip6_socket == INVALID_SOCKET)
 			Com_Printf( "WARNING: Couldn't bind to a v6 ip address.\n");
 	}
+#endif
 
 	if(net_enabled->integer & NET_ENABLEV4)
 	{
@@ -1389,8 +1576,10 @@ void NET_OpenIP( void ) {
 			if (ip_socket != INVALID_SOCKET) {
 				Cvar_SetValue( "net_port", port + i );
 
+#ifndef HW_DOL
 				if (net_socksEnabled->integer)
 					NET_OpenSocks( port + i );
+#endif
 
 				break;
 			}
@@ -1418,7 +1607,10 @@ NET_GetCvars
 static qboolean NET_GetCvars( void ) {
 	int modified;
 
-#ifdef DEDICATED
+#ifdef HW_DOL
+	// IPv4 only on the GameCube.
+	net_enabled = Cvar_Get( "net_enabled", "1", CVAR_LATCH | CVAR_ARCHIVE );
+#elif defined(DEDICATED)
 	// I want server owners to explicitly turn on ipv6 support.
 	net_enabled = Cvar_Get( "net_enabled", "1", CVAR_LATCH | CVAR_ARCHIVE );
 #else
@@ -1534,6 +1726,7 @@ void NET_Config( qboolean enableNetworking ) {
 			ip_socket = INVALID_SOCKET;
 		}
 
+#ifndef HW_DOL
 		if(multicast6_socket != INVALID_SOCKET)
 		{
 			if(multicast6_socket != ip6_socket)
@@ -1546,6 +1739,7 @@ void NET_Config( qboolean enableNetworking ) {
 			closesocket( ip6_socket );
 			ip6_socket = INVALID_SOCKET;
 		}
+#endif
 
 		if ( socks_socket != INVALID_SOCKET ) {
 			closesocket( socks_socket );
@@ -1558,8 +1752,13 @@ void NET_Config( qboolean enableNetworking ) {
 	{
 		if (net_enabled->integer)
 		{
+#ifdef HW_DOL
+			if ((net_enabled->integer & NET_ENABLEV4) && GC_NetStart())
+				NET_OpenIP();
+#else
 			NET_OpenIP();
 			NET_SetMulticast6();
+#endif
 		}
 	}
 }
@@ -1670,6 +1869,7 @@ void NET_Sleep(int msec)
 
 		highestfd = ip_socket;
 	}
+#ifndef HW_DOL
 	if(ip6_socket != INVALID_SOCKET)
 	{
 		FD_SET(ip6_socket, &fdr);
@@ -1677,12 +1877,17 @@ void NET_Sleep(int msec)
 		if(highestfd == INVALID_SOCKET || ip6_socket > highestfd)
 			highestfd = ip6_socket;
 	}
+#endif
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(HW_DOL)
 	if(highestfd == INVALID_SOCKET)
 	{
+#ifdef _WIN32
 		// windows ain't happy when select is called without valid FDs
 		SleepEx(msec, 0);
+#else
+		Sys_Sleep(msec);
+#endif
 		return;
 	}
 #endif

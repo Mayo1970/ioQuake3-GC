@@ -24,7 +24,8 @@ baseline path `ui/menudef.h`.
 | MD4 (Andrew Tridgell) | `code/qcommon/md4.c` | GPL-2.0-or-later | Yes |
 | MD5 (Colin Plumb) | `code/qcommon/md5.c` | Public domain | Yes |
 | Intel/DVI ADPCM coder (Stichting Mathematisch Centrum) | `code/client/snd_adpcm.c` | CWI permissive notice | Yes |
-| libogc 3.2.1 (Michael Wiedenbauer, Dave Murphy) | toolchain image | zlib-style licence | Yes (`libogc.a`, `libasnd.a`, `libbba.a`) |
+| libogc 3.2.1 (Michael Wiedenbauer, Dave Murphy) | toolchain image | zlib-style licence | Yes (`libogc.a`, `libasnd.a`) |
+| libogc lwIP (Swedish Institute of Computer Science and others) | `code/lwip/` (vendored) | lwIP BSD licence + libogc zlib-style licence | Yes |
 | libfat-ogc 2.1.0 (devkitPro) | toolchain image | as stated in its headers | Yes (`libfat.a`) |
 | GCC runtime (libgcc) | toolchain image | GPL-3.0 with the GCC Runtime Library Exception | Yes |
 | newlib | toolchain image | `COPYING.NEWLIB` (permissive) | Yes |
@@ -142,6 +143,13 @@ redistribute it freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source
    distribution.
 ```
+
+## libogc lwIP
+
+`code/lwip/` holds the lwIP stack vendored from libogc, https://github.com/devkitPro/libogc, tag v3.2.1, commit
+`959871c08ed80d1a63b258bc207218623ea1b0e5`. Only `code/lwip/include/lwip/lwipopts.h` is changed (small pools); the
+other files are unchanged. The lwIP sources keep their BSD licence headers. The libogc licence text is the one above;
+a copy is in `code/lwip/LICENSE.libogc`.
 
 ## Toolchain runtime
 
