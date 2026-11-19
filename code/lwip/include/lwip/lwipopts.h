@@ -156,7 +156,8 @@ a lot of data that needs to be copied, this should be set high. */
 
 /* 1 if you want to do an ARP check on the offered address
    (recommended). */
-#define DHCP_DOES_ARP_CHECK     1
+/* QGC-24: off; Dolphin's BBA answers the probe, and it adds 1 s on hardware. */
+#define DHCP_DOES_ARP_CHECK     0
 
 /* ---------- UDP options ---------- */
 #define LWIP_UDP                1

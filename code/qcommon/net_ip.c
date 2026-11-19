@@ -169,7 +169,7 @@ static nip_localaddr_t localIP[MAX_IPS];
 static int numIP;
 
 #ifdef HW_DOL
-#define GC_NET_DHCP_RETRIES 3
+#define GC_NET_DHCP_RETRIES 10
 
 static qboolean gc_net_started = qfalse;
 static qboolean gc_net_ready = qfalse;
