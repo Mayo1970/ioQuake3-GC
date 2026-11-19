@@ -46,7 +46,6 @@
 #include "lwip/sys.h"
 
 #include "lwip/stats.h"
-
 #include "gc_lwip_mem.h"
 
 struct mem {
@@ -67,8 +66,10 @@ struct mem {
 static struct mem *ram_end;
 #ifdef HW_DOL
 u8_t *ram;
+_Static_assert(GC_LWIP_RAM_SIZE >= MEM_SIZE + sizeof(struct mem) + MEM_ALIGNMENT,
+               "GC_LWIP_RAM_SIZE is smaller than the upstream ram size");
 #else
-static u8_t ram[GC_LWIP_RAM_SIZE];
+static u8_t ram[MEM_SIZE + sizeof(struct mem) + MEM_ALIGNMENT];
 #endif
 
 #define MIN_SIZE 12

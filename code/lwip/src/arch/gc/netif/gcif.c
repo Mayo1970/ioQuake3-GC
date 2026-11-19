@@ -14,13 +14,16 @@
 #include "netif/etharp.h"
 
 #include "netif/gcif/gcif.h"
-
 #include "gc_lwip_mem.h"
 
 #define IFNAME0		'e'
 #define IFNAME1		'0'
 
+#ifdef HW_DOL
 #define BBA_NUM_BUFFERS GC_LWIP_BBA_NUM_BUFFERS
+#else
+#define BBA_NUM_BUFFERS 32
+#endif
 
 static struct netif *gc_netif = NULL;
 
@@ -28,9 +31,14 @@ static lwp_queue bba_bufqueue;
 #ifdef HW_DOL
 BbaBuffer *bba_buffers;
 u8 *bba_thread_stack;
+_Static_assert(GC_LWIP_BBA_NUM_BUFFERS == 32,
+               "GC_LWIP_BBA_NUM_BUFFERS must match the upstream buffer count");
+_Static_assert(GC_LWIP_BBA_STACK_SIZE == 0x2000,
+               "GC_LWIP_BBA_STACK_SIZE must match the upstream stack size");
 #else
 static BbaBuffer bba_buffers[BBA_NUM_BUFFERS];
-alignas(0x20) static u8 bba_thread_stack[GC_LWIP_BBA_STACK_SIZE];
+
+alignas(0x20) static u8 bba_thread_stack[0x2000];
 #endif
 
 static struct pbuf* __bba_alloc_pbuf(unsigned size)
@@ -180,7 +188,11 @@ err_t bba_init(struct netif *dev)
 	memcpy(dev->hwaddr, g_bbaMac, 6);
 
 	BBA_OnRxBegin(__bba_begin_rx);
+#ifdef HW_DOL
 	BBA_StartThread(&bba_thread_stack[GC_LWIP_BBA_STACK_SIZE], 0);
+#else
+	BBA_StartThread(&bba_thread_stack[sizeof(bba_thread_stack)], 0);
+#endif
 
 	return ERR_OK;
 }

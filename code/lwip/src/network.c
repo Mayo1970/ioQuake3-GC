@@ -33,7 +33,6 @@
 #include <sys/iosupport.h>
 
 #include "network.h"
-
 #include "gc_lwip_mem.h"
 
 //#define _NET_DEBUG
@@ -42,7 +41,11 @@
 #define DHCPCOARSE_TIMER_ID		0x00070043
 #define DHCPFINE_TIMER_ID		0x00070044
 
+#ifdef HW_DOL
 #define STACKSIZE				GC_LWIP_NET_STACK_SIZE
+#else
+#define STACKSIZE				32768
+#endif
 #define MQBOX_SIZE				256
 #define NUM_SOCKETS				MEMP_NUM_NETCONN
 
@@ -107,6 +110,8 @@ static sys_mbox netthread_mbox;
 static sys_thread hnet_thread;
 #ifdef HW_DOL
 u8 *netthread_stack;
+_Static_assert(GC_LWIP_NET_STACK_SIZE == 32768,
+               "GC_LWIP_NET_STACK_SIZE must match the upstream stack size");
 #else
 static u8 netthread_stack[STACKSIZE];
 #endif
