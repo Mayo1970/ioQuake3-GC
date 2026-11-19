@@ -74,7 +74,7 @@ JPEG_OBJ	:=	$(addprefix code/jpeg-8c/,jaricom.o jcapimin.o \
 ZLIB_CFILES	:=	$(notdir $(wildcard $(CURDIR)/code/zlib/*.c))
 ZLIB_OBJ	:=	$(addprefix code/zlib/,$(ZLIB_CFILES:.c=.o))
 
-LWIP_OBJ	:=	$(addprefix code/lwip/src/,network.o netio.o \
+LWIP_OBJ	:=	$(addprefix code/lwip/src/,gc_lwip_mem.o network.o netio.o \
 			arch/gc/netif/gcif.o core/inet.o core/mem.o core/dhcp.o \
 			core/raw.o core/memp.o core/netif.o core/pbuf.o core/stats.o \
 			core/sys.o core/tcp.o core/tcp_in.o core/tcp_out.o core/udp.o \

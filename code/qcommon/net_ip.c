@@ -66,6 +66,7 @@ static qboolean	winsockInitialized = qfalse;
 #	ifdef HW_DOL
 #		include "../sys/gc_net.h"
 #		include "../sys/gc_dns.h"
+#		include "../lwip/include/gc_lwip_mem.h"
 #		ifdef GC_DEBUG
 #			undef COLOR_BLACK
 #			undef COLOR_RED
@@ -191,7 +192,12 @@ static qboolean GC_NetStart(void)
 
 	gc_net_started = qtrue;
 
+	if (GC_LwipAlloc() != 0) {
+		Com_Printf("NET: no memory for the network stack\n");
+		return qfalse;
+	}
 #ifdef GC_DEBUG
+	Com_Printf("NET: lwIP buffers %u bytes\n", (unsigned)GC_LWIP_TOTAL_SIZE);
 	start = gettime();
 #endif
 	ret = if_config(ip, netmask, gateway, true, GC_NET_DHCP_RETRIES);
@@ -201,8 +207,11 @@ static qboolean GC_NetStart(void)
 #endif
 
 	if (ret < 0) {
-		if (ret == -1)
+		if (ret == -1) {
 			Com_Printf("NET: no Broadband Adapter\n");
+			/* netif_add failed before net_init: no thread, timer or RX path runs. */
+			GC_LwipFree();
+		}
 		else if (ret == -2)
 			Com_Printf("NET: DHCP failed\n");
 		else
@@ -769,6 +778,8 @@ void Sys_SendPacket( int length, const void *data, netadr_t to ) {
 	struct sockaddr_storage	addr;
 
 #ifdef HW_DOL
+	if( to.type == NA_IP6 || to.type == NA_MULTICAST6 )
+		return;
 	if( to.type != NA_BROADCAST && to.type != NA_IP )
 #else
 	if( to.type != NA_BROADCAST && to.type != NA_IP && to.type != NA_IP6 && to.type != NA_MULTICAST6)

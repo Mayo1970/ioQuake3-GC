@@ -47,6 +47,8 @@
 
 #include "lwip/stats.h"
 
+#include "gc_lwip_mem.h"
+
 struct mem {
   mem_size_t next, prev;
 #if MEM_ALIGNMENT == 1
@@ -63,7 +65,11 @@ struct mem {
 }; 
 
 static struct mem *ram_end;
-static u8_t ram[MEM_SIZE + sizeof(struct mem) + MEM_ALIGNMENT];
+#ifdef HW_DOL
+u8_t *ram;
+#else
+static u8_t ram[GC_LWIP_RAM_SIZE];
+#endif
 
 #define MIN_SIZE 12
 #if 0 /* this one does not align correctly for some, resulting in crashes */

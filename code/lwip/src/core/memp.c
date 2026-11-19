@@ -45,6 +45,8 @@
 #include "lwip/sys.h"
 #include "lwip/stats.h"
 
+#include "gc_lwip_mem.h"
+
 struct memp {
   struct memp *next;
 };
@@ -83,44 +85,11 @@ static const u16_t memp_num[MEMP_MAX] = {
   MEMP_NUM_SYS_TIMEOUT
 };
 
-static u8_t memp_memory[(MEMP_NUM_PBUF *
-       MEM_ALIGN_SIZE(sizeof(struct pbuf) +
-          sizeof(struct memp)) +
-      MEMP_NUM_RAW_PCB *
-       MEM_ALIGN_SIZE(sizeof(struct raw_pcb) +
-          sizeof(struct memp)) +
-      MEMP_NUM_UDP_PCB *
-       MEM_ALIGN_SIZE(sizeof(struct udp_pcb) +
-          sizeof(struct memp)) +
-      MEMP_NUM_TCP_PCB *
-       MEM_ALIGN_SIZE(sizeof(struct tcp_pcb) +
-          sizeof(struct memp)) +
-      MEMP_NUM_TCP_PCB_LISTEN *
-       MEM_ALIGN_SIZE(sizeof(struct tcp_pcb_listen) +
-          sizeof(struct memp)) +
-      MEMP_NUM_TCP_SEG *
-       MEM_ALIGN_SIZE(sizeof(struct tcp_seg) +
-          sizeof(struct memp)) +
-      MEMP_NUM_NETBUF *
-       MEM_ALIGN_SIZE(sizeof(struct netbuf) +
-          sizeof(struct memp)) +
-      MEMP_NUM_NETCONN *
-       MEM_ALIGN_SIZE(sizeof(struct netconn) +
-          sizeof(struct memp)) +
-      MEMP_NUM_API_MSG *
-       MEM_ALIGN_SIZE(sizeof(struct api_msg) +
-          sizeof(struct memp)) +
-      MEMP_NUM_TCPIP_MSG *
-       MEM_ALIGN_SIZE(sizeof(struct net_msg) +
-          sizeof(struct memp)) +
-      PBUF_POOL_SIZE *
-       MEM_ALIGN_SIZE(sizeof(struct pbuf) +
-          sizeof(struct memp)) +
-      PBUF_POOL_SIZE *
-       MEM_ALIGN_SIZE(PBUF_POOL_BUFSIZE) +
-      MEMP_NUM_SYS_TIMEOUT *
-       MEM_ALIGN_SIZE(sizeof(struct sys_timeout) +
-          sizeof(struct memp)))];
+#ifdef HW_DOL
+u8_t *memp_memory;
+#else
+static u8_t memp_memory[GC_LWIP_MEMP_SIZE];
+#endif
 
 
 #if !SYS_LIGHTWEIGHT_PROT

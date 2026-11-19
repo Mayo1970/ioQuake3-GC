@@ -34,13 +34,15 @@
 
 #include "network.h"
 
+#include "gc_lwip_mem.h"
+
 //#define _NET_DEBUG
 #define ARP_TIMER_ID			0x00070041
 #define TCP_TIMER_ID			0x00070042
 #define DHCPCOARSE_TIMER_ID		0x00070043
 #define DHCPFINE_TIMER_ID		0x00070044
 
-#define STACKSIZE				32768
+#define STACKSIZE				GC_LWIP_NET_STACK_SIZE
 #define MQBOX_SIZE				256
 #define NUM_SOCKETS				MEMP_NUM_NETCONN
 
@@ -103,7 +105,11 @@ static sys_sem sockselect_sem;
 static sys_mbox netthread_mbox;
 
 static sys_thread hnet_thread;
+#ifdef HW_DOL
+u8 *netthread_stack;
+#else
 static u8 netthread_stack[STACKSIZE];
+#endif
 
 static u32 tcp_timer_active = 0;
 
